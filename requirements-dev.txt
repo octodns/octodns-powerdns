@@ -1,0 +1,6 @@
+nose
+nose-no-network
+nose-timer
+requests_mock
+pycodestyle==2.6.0
+pyflakes==2.2.0

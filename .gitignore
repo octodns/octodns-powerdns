@@ -1,0 +1,11 @@
+*.pyc
+.coverage
+.env
+/build/
+/config/
+coverage.xml
+dist/
+env/
+htmlcov/
+nosetests.xml
+octodns-*.egg-info/
