@@ -1,5 +1,6 @@
 *.pyc
 .coverage
+.eggs/
 .env
 /build/
 /config/
@@ -8,4 +9,4 @@ dist/
 env/
 htmlcov/
 nosetests.xml
-octodns-*.egg-info/
+octodns_*.egg-info/
