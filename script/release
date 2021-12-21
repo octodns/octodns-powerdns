@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -o pipefail
 
 cd "$(dirname "$0")"/..
 ROOT=$(pwd)
@@ -16,7 +17,7 @@ if [ ! -f "$ACTIVATE" ]; then
 fi
 . "$ACTIVATE"
 
-VERSION="$(grep __VERSION__ "$ROOT/octodns_*/__init__.py" | sed -e "s/.* = '//" -e "s/'$//")"
+VERSION="$(grep __VERSION__ "$ROOT/octodns_powerdns/__init__.py" | sed -e "s/.* = '//" -e "s/'$//")"
 
 git tag -s "v$VERSION" -m "Release $VERSION"
 git push origin "v$VERSION"
