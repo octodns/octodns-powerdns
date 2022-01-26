@@ -64,13 +64,13 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.1.10"})
-            self.assertEquals(provider.powerdns_version, [4, 1, 10])
+            self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection for second time (should stay at 4.1.10)
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.2.0"})
-            self.assertEquals(provider.powerdns_version, [4, 1, 10])
+            self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection
         with requests_mock() as mock:
@@ -79,7 +79,7 @@ class TestPowerDnsProvider(TestCase):
 
             # Reset version, so detection will try again
             provider._powerdns_version = None
-            self.assertNotEquals(provider.powerdns_version, [4, 1, 10])
+            self.assertNotEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection with pre-releases
         with requests_mock() as mock:
@@ -87,13 +87,13 @@ class TestPowerDnsProvider(TestCase):
             provider._powerdns_version = None
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.4.0-alpha1"})
-            self.assertEquals(provider.powerdns_version, [4, 4, 0])
+            self.assertEqual(provider.powerdns_version, [4, 4, 0])
 
             provider._powerdns_version = None
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200,
                      json={'version': "4.5.0-alpha0.435.master.gcb114252b"})
-            self.assertEquals(provider.powerdns_version, [4, 5, 0])
+            self.assertEqual(provider.powerdns_version, [4, 5, 0])
 
     def test_provider_version_config(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key',
@@ -105,7 +105,7 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.1.10"})
-            self.assertEquals(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
             self.assertFalse(
                 provider.check_status_not_found,
                 'check_status_not_found should be false '
@@ -116,7 +116,7 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.2.0"})
-            self.assertEquals(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
             self.assertTrue(
                 provider.check_status_not_found,
                 'check_status_not_found should be true for version 4.2.x')
@@ -126,7 +126,7 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.3.0"})
-            self.assertEquals(provider.soa_edit_api, 'DEFAULT')
+            self.assertEqual(provider.soa_edit_api, 'DEFAULT')
             self.assertTrue(
                 provider.check_status_not_found,
                 'check_status_not_found should be true for version 4.3.x')
@@ -140,7 +140,7 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             mock.get('http://non.existent:8081/api/v1/servers/localhost',
                      status_code=200, json={'version': "4.1.10"})
-            self.assertEquals(provider.powerdns_version, [4, 1, 10])
+            self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Bad auth
         with requests_mock() as mock:
@@ -158,7 +158,7 @@ class TestPowerDnsProvider(TestCase):
             with self.assertRaises(HTTPError) as ctx:
                 zone = Zone('unit.tests.', [])
                 provider.populate(zone)
-            self.assertEquals(502, ctx.exception.response.status_code)
+            self.assertEqual(502, ctx.exception.response.status_code)
 
         # Non-existent zone in PowerDNS <4.3.0 doesn't populate anything
         with requests_mock() as mock:
@@ -166,7 +166,7 @@ class TestPowerDnsProvider(TestCase):
                      json={'error': "Could not find domain 'unit.tests.'"})
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEquals(set(), zone.records)
+            self.assertEqual(set(), zone.records)
 
         # Non-existent zone in PowerDNS >=4.2.0 doesn't populate anything
 
@@ -175,18 +175,17 @@ class TestPowerDnsProvider(TestCase):
             mock.get(ANY, status_code=404, text='Not Found')
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEquals(set(), zone.records)
+            self.assertEqual(set(), zone.records)
 
         provider._powerdns_version = [4, 1, 0]
 
         # The rest of this is messy/complicated b/c it's dealing with mocking
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'tests',
-                                           'config'))
+        source = YamlProvider('test', join(dirname(__file__), 'config'))
         source.populate(expected)
         expected_n = len(expected.records) - 4
-        self.assertEquals(19, expected_n)
+        self.assertEqual(19, expected_n)
 
         # No diffs == no changes
         with requests_mock() as mock:
@@ -194,14 +193,14 @@ class TestPowerDnsProvider(TestCase):
 
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEquals(19, len(zone.records))
+            self.assertEqual(19, len(zone.records))
             changes = expected.changes(zone, provider)
-            self.assertEquals(0, len(changes))
+            self.assertEqual(0, len(changes))
 
         # Used in a minute
         def assert_rrsets_callback(request, context):
             data = loads(request.body)
-            self.assertEquals(expected_n, len(data['rrsets']))
+            self.assertEqual(expected_n, len(data['rrsets']))
             return ''
 
         # No existing records -> creates for every record in expected
@@ -211,8 +210,8 @@ class TestPowerDnsProvider(TestCase):
             mock.patch(ANY, status_code=201, text=assert_rrsets_callback)
 
             plan = provider.plan(expected)
-            self.assertEquals(expected_n, len(plan.changes))
-            self.assertEquals(expected_n, provider.apply(plan))
+            self.assertEqual(expected_n, len(plan.changes))
+            self.assertEqual(expected_n, provider.apply(plan))
             self.assertTrue(plan.exists)
 
         # Non-existent zone -> creates for every record in expected
@@ -230,8 +229,8 @@ class TestPowerDnsProvider(TestCase):
             mock.post(ANY, status_code=201, text=assert_rrsets_callback)
 
             plan = provider.plan(expected)
-            self.assertEquals(expected_n, len(plan.changes))
-            self.assertEquals(expected_n, provider.apply(plan))
+            self.assertEqual(expected_n, len(plan.changes))
+            self.assertEqual(expected_n, provider.apply(plan))
             self.assertFalse(plan.exists)
 
         provider._powerdns_version = [4, 2, 0]
@@ -244,8 +243,8 @@ class TestPowerDnsProvider(TestCase):
             mock.post(ANY, status_code=201, text=assert_rrsets_callback)
 
             plan = provider.plan(expected)
-            self.assertEquals(expected_n, len(plan.changes))
-            self.assertEquals(expected_n, provider.apply(plan))
+            self.assertEqual(expected_n, len(plan.changes))
+            self.assertEqual(expected_n, provider.apply(plan))
             self.assertFalse(plan.exists)
 
         provider._powerdns_version = [4, 1, 0]
@@ -260,7 +259,7 @@ class TestPowerDnsProvider(TestCase):
                 plan = provider.plan(expected)
                 provider.apply(plan)
             response = ctx.exception.response
-            self.assertEquals(422, response.status_code)
+            self.assertEqual(422, response.status_code)
             self.assertTrue('error' in response.json())
 
         with requests_mock() as mock:
@@ -289,10 +288,9 @@ class TestPowerDnsProvider(TestCase):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'tests',
-                                           'config'))
+        source = YamlProvider('test', join(dirname(__file__), 'config'))
         source.populate(expected)
-        self.assertEquals(23, len(expected.records))
+        self.assertEqual(23, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:
@@ -307,7 +305,7 @@ class TestPowerDnsProvider(TestCase):
                     missing.add_record(record)
 
             def assert_delete_callback(request, context):
-                self.assertEquals({
+                self.assertEqual({
                     'rrsets': [{
                         'records': [
                             {'content': '"v=spf1 ip4:192.168.0.1/16-all"',
@@ -324,8 +322,8 @@ class TestPowerDnsProvider(TestCase):
             mock.patch(ANY, status_code=201, text=assert_delete_callback)
 
             plan = provider.plan(missing)
-            self.assertEquals(1, len(plan.changes))
-            self.assertEquals(1, provider.apply(plan))
+            self.assertEqual(1, len(plan.changes))
+            self.assertEqual(1, provider.apply(plan))
 
     def test_existing_nameservers(self):
         ns_values = ['8.8.8.8.', '9.9.9.9.']
@@ -409,7 +407,7 @@ class TestPowerDnsProvider(TestCase):
                      status_code=200, json={'version': '4.1.0'})
 
             plan = provider.plan(expected)
-            self.assertEquals(1, len(plan.changes))
+            self.assertEqual(1, len(plan.changes))
 
         # create
         with requests_mock() as mock:
@@ -419,4 +417,4 @@ class TestPowerDnsProvider(TestCase):
             mock.get(ANY, status_code=200, json=data)
 
             plan = provider.plan(expected)
-            self.assertEquals(1, len(plan.changes))
+            self.assertEqual(1, len(plan.changes))
