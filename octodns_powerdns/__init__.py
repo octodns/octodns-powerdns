@@ -9,7 +9,8 @@ from requests import HTTPError, Session
 from operator import itemgetter
 import logging
 
-from octodns.record import Create, Record
+from octodns.record import Record
+from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 
 __VERSION__ = '0.0.1'
@@ -18,6 +19,7 @@ __VERSION__ = '0.0.1'
 class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
+    SUPPORTS_ROOT_NS = True
     SUPPORTS = set(('A', 'AAAA', 'ALIAS', 'CAA', 'CNAME', 'LOC', 'MX', 'NAPTR',
                     'NS', 'PTR', 'SPF', 'SSHFP', 'SRV', 'TXT'))
     TIMEOUT = 5
@@ -25,6 +27,12 @@ class PowerDnsBaseProvider(BaseProvider):
     def __init__(self, id, host, api_key, port=8081,
                  scheme="http", timeout=TIMEOUT, *args, **kwargs):
         super(PowerDnsBaseProvider, self).__init__(id, *args, **kwargs)
+
+        if getattr(self, '_get_nameserver_record', False):
+            raise ProviderException('_get_nameserver_record no longer '
+                                    'supported; instead migrate to using a '
+                                    'dynamic source for zones; see '
+                                    'CHANGELOG.md')
 
         self.host = host
         self.port = port
@@ -383,33 +391,6 @@ class PowerDnsBaseProvider(BaseProvider):
             'records': records_for(existing)
         }
 
-    def _get_nameserver_record(self, existing):
-        return None
-
-    def _extra_changes(self, existing, **kwargs):
-        self.log.debug('_extra_changes: zone=%s', existing.name)
-
-        ns = self._get_nameserver_record(existing)
-        if not ns:
-            return []
-
-        # sorting mostly to make things deterministic for testing, but in
-        # theory it let us find what we're after quicker (though sorting would
-        # be more expensive.)
-        for record in sorted(existing.records):
-            if record == ns:
-                # We've found the top-level NS record, return any changes
-                change = record.changes(ns, self)
-                self.log.debug('_extra_changes:   change=%s', change)
-                if change:
-                    # We need to modify an existing record
-                    return [change]
-                # No change is necessary
-                return []
-        # No existing top-level NS
-        self.log.debug('_extra_changes:   create')
-        return [Create(ns)]
-
     def _get_error(self, http_error):
         try:
             return http_error.response.json()['error']
@@ -484,25 +465,16 @@ class PowerDnsBaseProvider(BaseProvider):
 class PowerDnsProvider(PowerDnsBaseProvider):
 
     def __init__(self, id, host, api_key, port=8081, nameserver_values=None,
-                 nameserver_ttl=600,
+                 nameserver_ttl=None,
                  *args, **kwargs):
         self.log = logging.getLogger(f'PowerDnsProvider[{id}]')
         self.log.debug('__init__: id=%s, host=%s, port=%d, '
                        'nameserver_values=%s, nameserver_ttl=%d',
                        id, host, port, nameserver_values, nameserver_ttl)
         super(PowerDnsProvider, self).__init__(id, host=host, api_key=api_key,
-                                               port=port,
-                                               *args, **kwargs)
+                                               port=port, *args, **kwargs)
 
-        self.nameserver_values = nameserver_values
-        self.nameserver_ttl = nameserver_ttl
-
-    def _get_nameserver_record(self, existing):
-        if self.nameserver_values:
-            return Record.new(existing, '', {
-                'type': 'NS',
-                'ttl': self.nameserver_ttl,
-                'values': self.nameserver_values,
-            }, source=self)
-
-        return super(PowerDnsProvider, self)._get_nameserver_record(existing)
+        if nameserver_values or nameserver_ttl:
+            raise ProviderException('nameserver_values parameter no longer '
+                                    'supported; migrate root NS records to '
+                                    'sources; see CHANGELOG.md')
