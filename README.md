@@ -58,6 +58,10 @@ providers:
 
 All octoDNS record types are supported.
 
+#### Root NS Records
+
+PowerDnsProvider supports full root NS record management.
+
 #### Dynamic
 
 PowerDnsProvider does not support dynamic records.
