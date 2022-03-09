@@ -12,9 +12,10 @@ from requests_mock import ANY, mock as requests_mock
 from unittest import TestCase
 
 from octodns.record import Record
-from octodns_powerdns import PowerDnsProvider
 from octodns.provider.yaml import YamlProvider
 from octodns.zone import Zone
+
+from octodns_powerdns import PowerDnsProvider, _escape_unescaped_semicolons
 
 EMPTY_TEXT = '''
 {
@@ -418,3 +419,40 @@ class TestPowerDnsProvider(TestCase):
 
             plan = provider.plan(expected)
             self.assertEqual(1, len(plan.changes))
+
+    def test_unescaped_semicolon(self):
+        # no escapes
+        self.assertEqual('', _escape_unescaped_semicolons(''))
+        self.assertEqual('hello', _escape_unescaped_semicolons('hello'))
+        self.assertEqual('hello world!',
+                         _escape_unescaped_semicolons('hello world!'))
+
+        # good
+        self.assertEqual('\\;', _escape_unescaped_semicolons('\\;'))
+        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo\\;'))
+        self.assertEqual('foo\\; bar\\;',
+                         _escape_unescaped_semicolons('foo\\; bar\\;'))
+        self.assertEqual('foo\\; bar\\; baz\\;',
+                         _escape_unescaped_semicolons('foo\\; bar\\; baz\\;'))
+
+        # missing
+        self.assertEqual('\\;', _escape_unescaped_semicolons(';'))
+        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo;'))
+        self.assertEqual('foo\\; bar\\;',
+                         _escape_unescaped_semicolons('foo; bar;'))
+        self.assertEqual('foo\\; bar\\; baz\\;',
+                         _escape_unescaped_semicolons('foo; bar; baz;'))
+
+        # partial
+        self.assertEqual('foo\\; bar\\; baz\\;',
+                         _escape_unescaped_semicolons('foo; bar\\; baz;'))
+
+        # double escaped, left alone
+        self.assertEqual('foo\\\\;', _escape_unescaped_semicolons('foo\\\\;'))
+
+        # double ;;
+        self.assertEqual('foo\\;\\;',
+                         _escape_unescaped_semicolons('foo\\;\\;'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;\\;'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
