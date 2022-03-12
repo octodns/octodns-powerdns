@@ -6,15 +6,17 @@ from __future__ import absolute_import, division, print_function, \
     unicode_literals
 
 from json import loads, dumps
+from logging import getLogger
 from os.path import dirname, join
 from requests import HTTPError
 from requests_mock import ANY, mock as requests_mock
 from unittest import TestCase
 
-from octodns.record import Record
-from octodns_powerdns import PowerDnsProvider
+from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
 from octodns.zone import Zone
+
+from octodns_powerdns import PowerDnsBaseProvider, PowerDnsProvider
 
 EMPTY_TEXT = '''
 {
@@ -41,9 +43,7 @@ with open('./tests/fixtures/powerdns-full-data.json') as fh:
 class TestPowerDnsProvider(TestCase):
 
     def test_provider_version_detection(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key',
-                                    nameserver_values=['8.8.8.8.',
-                                                       '9.9.9.9.'])
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         # Bad auth
         with requests_mock() as mock:
             mock.get(ANY, status_code=401, text='Unauthorized')
@@ -96,9 +96,7 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(provider.powerdns_version, [4, 5, 0])
 
     def test_provider_version_config(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key',
-                                    nameserver_values=['8.8.8.8.',
-                                                       '9.9.9.9.'])
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         # Test version 4.1.0
         provider._powerdns_version = None
@@ -132,9 +130,7 @@ class TestPowerDnsProvider(TestCase):
                 'check_status_not_found should be true for version 4.3.x')
 
     def test_provider(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key',
-                                    nameserver_values=['8.8.8.8.',
-                                                       '9.9.9.9.'])
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         # Test version detection
         with requests_mock() as mock:
@@ -182,7 +178,8 @@ class TestPowerDnsProvider(TestCase):
         # The rest of this is messy/complicated b/c it's dealing with mocking
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'config'))
+        source = YamlProvider('test', join(dirname(__file__), 'config'),
+                              supports_root_ns=False)
         source.populate(expected)
         expected_n = len(expected.records) - 4
         self.assertEqual(19, expected_n)
@@ -288,7 +285,8 @@ class TestPowerDnsProvider(TestCase):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'config'))
+        source = YamlProvider('test', join(dirname(__file__), 'config'),
+                              supports_root_ns=False)
         source.populate(expected)
         self.assertEqual(23, len(expected.records))
 
@@ -325,96 +323,25 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(1, len(plan.changes))
             self.assertEqual(1, provider.apply(plan))
 
-    def test_existing_nameservers(self):
-        ns_values = ['8.8.8.8.', '9.9.9.9.']
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key',
-                                    nameserver_values=ns_values)
+    def test_nameservers_params(self):
 
-        expected = Zone('unit.tests.', [])
-        ns_record = Record.new(expected, '', {
-            'type': 'NS',
-            'ttl': 600,
-            'values': ns_values
-        })
-        expected.add_record(ns_record)
+        with self.assertRaises(ProviderException) as ctx:
+            PowerDnsProvider('test', 'non.existent', 'api-key',
+                             nameserver_values=['8.8.8.8.', '9.9.9.9.'],
+                             nameserver_ttl=600)
+        self.assertTrue(str(ctx.exception)
+                        .startswith('nameserver_values parameter no longer '
+                                    'supported'))
 
-        # no changes
-        with requests_mock() as mock:
-            data = {
-                'rrsets': [{
-                    'comments': [],
-                    'name': 'unit.tests.',
-                    'records': [
-                        {
-                            'content': '8.8.8.8.',
-                            'disabled': False
-                        },
-                        {
-                            'content': '9.9.9.9.',
-                            'disabled': False
-                        }
-                    ],
-                    'ttl': 600,
-                    'type': 'NS'
-                }, {
-                    'comments': [],
-                    'name': 'unit.tests.',
-                    'records': [{
-                        'content': '1.2.3.4',
-                        'disabled': False,
-                    }],
-                    'ttl': 60,
-                    'type': 'A'
-                }]
-            }
-            mock.get(ANY, status_code=200, json=data)
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': '4.1.0'})
+        class ChildProvider(PowerDnsBaseProvider):
+            log = getLogger('ChildProvider')
 
-            unrelated_record = Record.new(expected, '', {
-                'type': 'A',
-                'ttl': 60,
-                'value': '1.2.3.4'
-            })
-            expected.add_record(unrelated_record)
-            plan = provider.plan(expected)
-            self.assertFalse(plan)
-            # remove it now that we don't need the unrelated change any longer
-            expected._remove_record(unrelated_record)
+            def _get_nameserver_record(self, *args, **kwargs):
+                pass
 
-        # ttl diff
-        with requests_mock() as mock:
-            data = {
-                'rrsets': [{
-                    'comments': [],
-                    'name': 'unit.tests.',
-                    'records': [
-                        {
-                            'content': '8.8.8.8.',
-                            'disabled': False
-                        },
-                        {
-                            'content': '9.9.9.9.',
-                            'disabled': False
-                        },
-                    ],
-                    'ttl': 3600,
-                    'type': 'NS'
-                }]
-            }
-            mock.get(ANY, status_code=200, json=data)
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': '4.1.0'})
-
-            plan = provider.plan(expected)
-            self.assertEqual(1, len(plan.changes))
-
-        # create
-        with requests_mock() as mock:
-            data = {
-                'rrsets': []
-            }
-            mock.get(ANY, status_code=200, json=data)
-
-            plan = provider.plan(expected)
-            self.assertEqual(1, len(plan.changes))
+        with self.assertRaises(ProviderException) as ctx:
+            ChildProvider('text', 'non.existent', 'api-key')
+        print(str(ctx.exception))
+        self.assertTrue(str(ctx.exception)
+                        .startswith('_get_nameserver_record no longer '
+                                    'supported;'))

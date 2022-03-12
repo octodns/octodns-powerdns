@@ -8,7 +8,7 @@ fqdn==1.5.1
 idna==3.3
 iniconfig==1.1.1
 natsort==8.1.0
-octodns==0.9.14
+octodns==0.9.16
 packaging==21.3
 pluggy==1.0.0
 pprintpp==0.4.0
