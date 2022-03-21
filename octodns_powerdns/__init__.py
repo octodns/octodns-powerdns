@@ -16,6 +16,16 @@ from octodns.provider.base import BaseProvider
 __VERSION__ = '0.0.1'
 
 
+def _escape_unescaped_semicolons(value):
+    pieces = value.split(';')
+    if len(pieces) == 1:
+        return value
+    last = pieces.pop()
+    joined = ';'.join([p if p and p[-1] == '\\' else f'{p}\\' for p in pieces])
+    ret = f'{joined};{last}'
+    return ret
+
+
 class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
@@ -106,7 +116,8 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_quoted(self, rrset):
         return {
             'type': rrset['type'],
-            'values': [r['content'][1:-1] for r in rrset['records']],
+            'values': [_escape_unescaped_semicolons(r['content'][1:-1])
+                       for r in rrset['records']],
             'ttl': rrset['ttl']
         }
 
