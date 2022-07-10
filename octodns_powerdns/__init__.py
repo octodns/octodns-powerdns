@@ -13,6 +13,8 @@ from octodns.record import Record
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 
+from .record import PowerDnsLuaRecord
+
 __VERSION__ = '0.0.1'
 
 
@@ -31,7 +33,8 @@ class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_DYNAMIC = False
     SUPPORTS_ROOT_NS = True
     SUPPORTS = set(('A', 'AAAA', 'ALIAS', 'CAA', 'CNAME', 'LOC', 'MX', 'NAPTR',
-                    'NS', 'PTR', 'SPF', 'SSHFP', 'SRV', 'TXT'))
+                    'NS', 'PTR', 'SPF', 'SSHFP', 'SRV', 'TXT',
+                    PowerDnsLuaRecord._type))
     TIMEOUT = 5
 
     def __init__(self, id, host, api_key, port=8081,
@@ -217,6 +220,20 @@ class PowerDnsBaseProvider(BaseProvider):
             'ttl': rrset['ttl']
         }
 
+    def _data_for_LUA(self, rrset):
+        values = []
+        for record in rrset['records']:
+            _type, script = record['content'].split(' ', 1)
+            values.append({
+                'type': _type,
+                'script': script,
+            })
+        return {
+            'ttl': rrset['ttl'],
+            'type': PowerDnsLuaRecord._type,
+            'values': values,
+        }
+
     @property
     def powerdns_version(self):
         if self._powerdns_version is None:
@@ -290,7 +307,12 @@ class PowerDnsBaseProvider(BaseProvider):
 
         if resp:
             exists = True
+            print(resp.content)
             for rrset in resp.json()['rrsets']:
+                from pprint import pprint
+                pprint({
+                    'rrset': rrset,
+                })
                 _type = rrset['type']
                 if _type == 'SOA':
                     continue
@@ -378,9 +400,24 @@ class PowerDnsBaseProvider(BaseProvider):
             'disabled': False
         } for v in record.values]
 
+    def _records_for_PowerDnsProvider_LUA(self, record):
+        return [{
+            'content': f'{v._type} "{v.script}"',
+            'disabled': False,
+        } for v in record.values]
+
     def _mod_Create(self, change):
         new = change.new
-        records_for = getattr(self, f'_records_for_{new._type}')
+        records_for = f'_records_for_{new._type}'.replace('/', '_')
+        records_for = getattr(self, records_for)
+        records = records_for(new)
+        from pprint import pprint
+        from json import dumps
+        pprint({
+            'create/update': records,
+            'json': dumps(records)
+        })
+
         return {
             'name': new.fqdn,
             'type': new._type,
@@ -393,7 +430,13 @@ class PowerDnsBaseProvider(BaseProvider):
 
     def _mod_Delete(self, change):
         existing = change.existing
-        records_for = getattr(self, f'_records_for_{existing._type}')
+        records_for = f'_records_for_{existing._type}'.replace('/', '_')
+        records_for = getattr(self, records_for)
+        records = records_for(existing)
+        from pprint import pprint
+        pprint({
+            'delete': records
+        })
         return {
             'name': existing.fqdn,
             'type': existing._type,

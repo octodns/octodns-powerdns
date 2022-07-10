@@ -26,4 +26,4 @@ services:
       - powerdns-db-data:/var/lib/mysql
     depends_on:
       - db
-    command: --api=yes --api-key=its@secret --loglevel=99 --webserver=yes --webserver-address=0.0.0.0 --webserver-allow-from=0.0.0.0/0 --webserver-password=its@secret --webserver-port=8081
+    command: --api=yes --api-key=its@secret --loglevel=99 --webserver=yes --webserver-address=0.0.0.0 --webserver-allow-from=0.0.0.0/0 --webserver-password=its@secret --webserver-port=8081 --enable-lua-records=yes

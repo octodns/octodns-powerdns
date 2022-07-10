@@ -53,7 +53,7 @@ setup(
         ),
     },
     install_requires=(
-        'octodns>=0.9.16',
+        'octodns>=0.9.17',
         'requests>=2.26.0',
     ),
     license='MIT',
