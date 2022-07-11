@@ -2,8 +2,12 @@
 #
 #
 
-from __future__ import absolute_import, division, print_function, \
-    unicode_literals
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
 
 from json import loads, dumps
 from logging import getLogger
@@ -16,8 +20,11 @@ from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
 from octodns.zone import Zone
 
-from octodns_powerdns import PowerDnsBaseProvider, PowerDnsProvider, \
-    _escape_unescaped_semicolons
+from octodns_powerdns import (
+    PowerDnsBaseProvider,
+    PowerDnsProvider,
+    _escape_unescaped_semicolons,
+)
 
 EMPTY_TEXT = '''
 {
@@ -42,7 +49,6 @@ with open('./tests/fixtures/powerdns-full-data.json') as fh:
 
 
 class TestPowerDnsProvider(TestCase):
-
     def test_provider_version_detection(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         # Bad auth
@@ -63,20 +69,29 @@ class TestPowerDnsProvider(TestCase):
 
         # Test version detection
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.1.10"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.1.10"},
+            )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection for second time (should stay at 4.1.10)
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.2.0"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.2.0"},
+            )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.2.0"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.2.0"},
+            )
 
             # Reset version, so detection will try again
             provider._powerdns_version = None
@@ -86,14 +101,19 @@ class TestPowerDnsProvider(TestCase):
         with requests_mock() as mock:
             # Reset version, so detection will try again
             provider._powerdns_version = None
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.4.0-alpha1"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.4.0-alpha1"},
+            )
             self.assertEqual(provider.powerdns_version, [4, 4, 0])
 
             provider._powerdns_version = None
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200,
-                     json={'version': "4.5.0-alpha0.435.master.gcb114252b"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.5.0-alpha0.435.master.gcb114252b"},
+            )
             self.assertEqual(provider.powerdns_version, [4, 5, 0])
 
     def test_provider_version_config(self):
@@ -102,41 +122,56 @@ class TestPowerDnsProvider(TestCase):
         # Test version 4.1.0
         provider._powerdns_version = None
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.1.10"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.1.10"},
+            )
             self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
             self.assertFalse(
                 provider.check_status_not_found,
                 'check_status_not_found should be false '
-                'for version 4.1.x and below')
+                'for version 4.1.x and below',
+            )
 
         # Test version 4.2.0
         provider._powerdns_version = None
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.2.0"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.2.0"},
+            )
             self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
             self.assertTrue(
                 provider.check_status_not_found,
-                'check_status_not_found should be true for version 4.2.x')
+                'check_status_not_found should be true for version 4.2.x',
+            )
 
         # Test version 4.3.0
         provider._powerdns_version = None
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.3.0"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.3.0"},
+            )
             self.assertEqual(provider.soa_edit_api, 'DEFAULT')
             self.assertTrue(
                 provider.check_status_not_found,
-                'check_status_not_found should be true for version 4.3.x')
+                'check_status_not_found should be true for version 4.3.x',
+            )
 
     def test_provider(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         # Test version detection
         with requests_mock() as mock:
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': "4.1.10"})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.1.10"},
+            )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Bad auth
@@ -159,8 +194,11 @@ class TestPowerDnsProvider(TestCase):
 
         # Non-existent zone in PowerDNS <4.3.0 doesn't populate anything
         with requests_mock() as mock:
-            mock.get(ANY, status_code=422,
-                     json={'error': "Could not find domain 'unit.tests.'"})
+            mock.get(
+                ANY,
+                status_code=422,
+                json={'error': "Could not find domain 'unit.tests.'"},
+            )
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
             self.assertEqual(set(), zone.records)
@@ -179,8 +217,9 @@ class TestPowerDnsProvider(TestCase):
         # The rest of this is messy/complicated b/c it's dealing with mocking
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'config'),
-                              supports_root_ns=False)
+        source = YamlProvider(
+            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+        )
         source.populate(expected)
         expected_n = len(expected.records) - 4
         self.assertEqual(19, expected_n)
@@ -286,16 +325,20 @@ class TestPowerDnsProvider(TestCase):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         expected = Zone('unit.tests.', [])
-        source = YamlProvider('test', join(dirname(__file__), 'config'),
-                              supports_root_ns=False)
+        source = YamlProvider(
+            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+        )
         source.populate(expected)
         self.assertEqual(23, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:
             mock.get(ANY, status_code=200, text=FULL_TEXT)
-            mock.get('http://non.existent:8081/api/v1/servers/localhost',
-                     status_code=200, json={'version': '4.1.0'})
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': '4.1.0'},
+            )
 
             missing = Zone(expected.name, [])
             # Find and delete the SPF record
@@ -304,18 +347,25 @@ class TestPowerDnsProvider(TestCase):
                     missing.add_record(record)
 
             def assert_delete_callback(request, context):
-                self.assertEqual({
-                    'rrsets': [{
-                        'records': [
-                            {'content': '"v=spf1 ip4:192.168.0.1/16-all"',
-                             'disabled': False}
-                        ],
-                        'changetype': 'DELETE',
-                        'type': 'SPF',
-                        'name': 'spf.unit.tests.',
-                        'ttl': 600
-                    }]
-                }, loads(request.body))
+                self.assertEqual(
+                    {
+                        'rrsets': [
+                            {
+                                'records': [
+                                    {
+                                        'content': '"v=spf1 ip4:192.168.0.1/16-all"',
+                                        'disabled': False,
+                                    }
+                                ],
+                                'changetype': 'DELETE',
+                                'type': 'SPF',
+                                'name': 'spf.unit.tests.',
+                                'ttl': 600,
+                            }
+                        ]
+                    },
+                    loads(request.body),
+                )
                 return ''
 
             mock.patch(ANY, status_code=201, text=assert_delete_callback)
@@ -327,12 +377,18 @@ class TestPowerDnsProvider(TestCase):
     def test_nameservers_params(self):
 
         with self.assertRaises(ProviderException) as ctx:
-            PowerDnsProvider('test', 'non.existent', 'api-key',
-                             nameserver_values=['8.8.8.8.', '9.9.9.9.'],
-                             nameserver_ttl=600)
-        self.assertTrue(str(ctx.exception)
-                        .startswith('nameserver_values parameter no longer '
-                                    'supported'))
+            PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                nameserver_values=['8.8.8.8.', '9.9.9.9.'],
+                nameserver_ttl=600,
+            )
+        self.assertTrue(
+            str(ctx.exception).startswith(
+                'nameserver_values parameter no longer ' 'supported'
+            )
+        )
 
         class ChildProvider(PowerDnsBaseProvider):
             log = getLogger('ChildProvider')
@@ -342,43 +398,53 @@ class TestPowerDnsProvider(TestCase):
 
         with self.assertRaises(ProviderException) as ctx:
             ChildProvider('text', 'non.existent', 'api-key')
-        self.assertTrue(str(ctx.exception)
-                        .startswith('_get_nameserver_record no longer '
-                                    'supported;'))
+        self.assertTrue(
+            str(ctx.exception).startswith(
+                '_get_nameserver_record no longer ' 'supported;'
+            )
+        )
 
     def test_unescaped_semicolon(self):
         # no escapes
         self.assertEqual('', _escape_unescaped_semicolons(''))
         self.assertEqual('hello', _escape_unescaped_semicolons('hello'))
-        self.assertEqual('hello world!',
-                         _escape_unescaped_semicolons('hello world!'))
+        self.assertEqual(
+            'hello world!', _escape_unescaped_semicolons('hello world!')
+        )
 
         # good
         self.assertEqual('\\;', _escape_unescaped_semicolons('\\;'))
         self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo\\;'))
-        self.assertEqual('foo\\; bar\\;',
-                         _escape_unescaped_semicolons('foo\\; bar\\;'))
-        self.assertEqual('foo\\; bar\\; baz\\;',
-                         _escape_unescaped_semicolons('foo\\; bar\\; baz\\;'))
+        self.assertEqual(
+            'foo\\; bar\\;', _escape_unescaped_semicolons('foo\\; bar\\;')
+        )
+        self.assertEqual(
+            'foo\\; bar\\; baz\\;',
+            _escape_unescaped_semicolons('foo\\; bar\\; baz\\;'),
+        )
 
         # missing
         self.assertEqual('\\;', _escape_unescaped_semicolons(';'))
         self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo;'))
-        self.assertEqual('foo\\; bar\\;',
-                         _escape_unescaped_semicolons('foo; bar;'))
-        self.assertEqual('foo\\; bar\\; baz\\;',
-                         _escape_unescaped_semicolons('foo; bar; baz;'))
+        self.assertEqual(
+            'foo\\; bar\\;', _escape_unescaped_semicolons('foo; bar;')
+        )
+        self.assertEqual(
+            'foo\\; bar\\; baz\\;',
+            _escape_unescaped_semicolons('foo; bar; baz;'),
+        )
 
         # partial
-        self.assertEqual('foo\\; bar\\; baz\\;',
-                         _escape_unescaped_semicolons('foo; bar\\; baz;'))
+        self.assertEqual(
+            'foo\\; bar\\; baz\\;',
+            _escape_unescaped_semicolons('foo; bar\\; baz;'),
+        )
 
         # double escaped, left alone
         self.assertEqual('foo\\\\;', _escape_unescaped_semicolons('foo\\\\;'))
 
         # double ;;
-        self.assertEqual('foo\\;\\;',
-                         _escape_unescaped_semicolons('foo\\;\\;'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;\\;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;\\;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
