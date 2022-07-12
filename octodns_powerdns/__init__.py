@@ -2,8 +2,12 @@
 #
 #
 
-from __future__ import absolute_import, division, print_function, \
-    unicode_literals
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
 
 from requests import HTTPError, Session
 from operator import itemgetter
@@ -32,20 +36,47 @@ class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
     SUPPORTS_ROOT_NS = True
-    SUPPORTS = set(('A', 'AAAA', 'ALIAS', 'CAA', 'CNAME', 'LOC', 'MX', 'NAPTR',
-                    'NS', 'PTR', 'SPF', 'SSHFP', 'SRV', 'TXT',
-                    PowerDnsLuaRecord._type))
+    SUPPORTS = set(
+        (
+            'A',
+            'AAAA',
+            'ALIAS',
+            'CAA',
+            'CNAME',
+            'LOC',
+            'MX',
+            'NAPTR',
+            'NS',
+            'PTR',
+            'SPF',
+            'SSHFP',
+            'SRV',
+            'TXT',
+            PowerDnsLuaRecord._type,
+        )
+    )
     TIMEOUT = 5
 
-    def __init__(self, id, host, api_key, port=8081,
-                 scheme="http", timeout=TIMEOUT, *args, **kwargs):
+    def __init__(
+        self,
+        id,
+        host,
+        api_key,
+        port=8081,
+        scheme="http",
+        timeout=TIMEOUT,
+        *args,
+        **kwargs,
+    ):
         super(PowerDnsBaseProvider, self).__init__(id, *args, **kwargs)
 
         if getattr(self, '_get_nameserver_record', False):
-            raise ProviderException('_get_nameserver_record no longer '
-                                    'supported; instead migrate to using a '
-                                    'dynamic source for zones; see '
-                                    'CHANGELOG.md')
+            raise ProviderException(
+                '_get_nameserver_record no longer '
+                'supported; instead migrate to using a '
+                'dynamic source for zones; see '
+                'CHANGELOG.md'
+            )
 
         self.host = host
         self.port = port
@@ -61,8 +92,10 @@ class PowerDnsBaseProvider(BaseProvider):
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
 
-        url = f'{self.scheme}://{self.host}:{self.port}/api/v1/servers/' \
+        url = (
+            f'{self.scheme}://{self.host}:{self.port}/api/v1/servers/'
             f'localhost/{path}'.rstrip('/')
+        )
         # Strip trailing / from url.
         resp = self._sess.request(method, url, json=data, timeout=self.timeout)
         self.log.debug('_request:   status=%d', resp.status_code)
@@ -83,7 +116,7 @@ class PowerDnsBaseProvider(BaseProvider):
         return {
             'type': rrset['type'],
             'values': [r['content'] for r in rrset['records']],
-            'ttl': rrset['ttl']
+            'ttl': rrset['ttl'],
         }
 
     _data_for_A = _data_for_multiple
@@ -94,22 +127,14 @@ class PowerDnsBaseProvider(BaseProvider):
         values = []
         for record in rrset['records']:
             flags, tag, value = record['content'].split(' ', 2)
-            values.append({
-                'flags': flags,
-                'tag': tag,
-                'value': value[1:-1],
-            })
-        return {
-            'type': rrset['type'],
-            'values': values,
-            'ttl': rrset['ttl']
-        }
+            values.append({'flags': flags, 'tag': tag, 'value': value[1:-1]})
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_single(self, rrset):
         return {
             'type': rrset['type'],
             'value': rrset['records'][0]['content'],
-            'ttl': rrset['ttl']
+            'ttl': rrset['ttl'],
         }
 
     _data_for_ALIAS = _data_for_single
@@ -119,9 +144,11 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_quoted(self, rrset):
         return {
             'type': rrset['type'],
-            'values': [_escape_unescaped_semicolons(r['content'][1:-1])
-                       for r in rrset['records']],
-            'ttl': rrset['ttl']
+            'values': [
+                _escape_unescaped_semicolons(r['content'][1:-1])
+                for r in rrset['records']
+            ],
+            'ttl': rrset['ttl'],
         }
 
     _data_for_SPF = _data_for_quoted
@@ -130,104 +157,97 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_LOC(self, rrset):
         values = []
         for record in rrset['records']:
-            lat_degrees, lat_minutes, lat_seconds, lat_direction, \
-                long_degrees, long_minutes, long_seconds, long_direction, \
-                altitude, size, precision_horz, precision_vert = \
-                record['content'].replace('m', '').split(' ', 11)
-            values.append({
-                'lat_degrees': int(lat_degrees),
-                'lat_minutes': int(lat_minutes),
-                'lat_seconds': float(lat_seconds),
-                'lat_direction': lat_direction,
-                'long_degrees': int(long_degrees),
-                'long_minutes': int(long_minutes),
-                'long_seconds': float(long_seconds),
-                'long_direction': long_direction,
-                'altitude': float(altitude),
-                'size': float(size),
-                'precision_horz': float(precision_horz),
-                'precision_vert': float(precision_vert),
-            })
-        return {
-            'ttl': rrset['ttl'],
-            'type': rrset['type'],
-            'values': values
-        }
+            (
+                lat_degrees,
+                lat_minutes,
+                lat_seconds,
+                lat_direction,
+                long_degrees,
+                long_minutes,
+                long_seconds,
+                long_direction,
+                altitude,
+                size,
+                precision_horz,
+                precision_vert,
+            ) = (record['content'].replace('m', '').split(' ', 11))
+            values.append(
+                {
+                    'lat_degrees': int(lat_degrees),
+                    'lat_minutes': int(lat_minutes),
+                    'lat_seconds': float(lat_seconds),
+                    'lat_direction': lat_direction,
+                    'long_degrees': int(long_degrees),
+                    'long_minutes': int(long_minutes),
+                    'long_seconds': float(long_seconds),
+                    'long_direction': long_direction,
+                    'altitude': float(altitude),
+                    'size': float(size),
+                    'precision_horz': float(precision_horz),
+                    'precision_vert': float(precision_vert),
+                }
+            )
+        return {'ttl': rrset['ttl'], 'type': rrset['type'], 'values': values}
 
     def _data_for_MX(self, rrset):
         values = []
         for record in rrset['records']:
             preference, exchange = record['content'].split(' ', 1)
-            values.append({
-                'preference': preference,
-                'exchange': exchange,
-            })
-        return {
-            'type': rrset['type'],
-            'values': values,
-            'ttl': rrset['ttl']
-        }
+            values.append({'preference': preference, 'exchange': exchange})
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_NAPTR(self, rrset):
         values = []
         for record in rrset['records']:
-            order, preference, flags, service, regexp, replacement = \
-                record['content'].split(' ', 5)
-            values.append({
-                'order': order,
-                'preference': preference,
-                'flags': flags[1:-1],
-                'service': service[1:-1],
-                'regexp': regexp[1:-1],
-                'replacement': replacement,
-            })
-        return {
-            'type': rrset['type'],
-            'values': values,
-            'ttl': rrset['ttl']
-        }
+            order, preference, flags, service, regexp, replacement = record[
+                'content'
+            ].split(' ', 5)
+            values.append(
+                {
+                    'order': order,
+                    'preference': preference,
+                    'flags': flags[1:-1],
+                    'service': service[1:-1],
+                    'regexp': regexp[1:-1],
+                    'replacement': replacement,
+                }
+            )
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_SSHFP(self, rrset):
         values = []
         for record in rrset['records']:
-            algorithm, fingerprint_type, fingerprint = \
-                record['content'].split(' ', 2)
-            values.append({
-                'algorithm': algorithm,
-                'fingerprint_type': fingerprint_type,
-                'fingerprint': fingerprint,
-            })
-        return {
-            'type': rrset['type'],
-            'values': values,
-            'ttl': rrset['ttl']
-        }
+            algorithm, fingerprint_type, fingerprint = record['content'].split(
+                ' ', 2
+            )
+            values.append(
+                {
+                    'algorithm': algorithm,
+                    'fingerprint_type': fingerprint_type,
+                    'fingerprint': fingerprint,
+                }
+            )
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_SRV(self, rrset):
         values = []
         for record in rrset['records']:
-            priority, weight, port, target = \
-                record['content'].split(' ', 3)
-            values.append({
-                'priority': priority,
-                'weight': weight,
-                'port': port,
-                'target': target,
-            })
-        return {
-            'type': rrset['type'],
-            'values': values,
-            'ttl': rrset['ttl']
-        }
+            priority, weight, port, target = record['content'].split(' ', 3)
+            values.append(
+                {
+                    'priority': priority,
+                    'weight': weight,
+                    'port': port,
+                    'target': target,
+                }
+            )
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_LUA(self, rrset):
         values = []
         for record in rrset['records']:
             _type, script = record['content'].split(' ', 1)
-            values.append({
-                'type': _type,
-                'script': script,
-            })
+            values.append({'type': _type, 'script': script})
         return {
             'ttl': rrset['ttl'],
             'type': PowerDnsLuaRecord._type,
@@ -246,12 +266,14 @@ class PowerDnsBaseProvider(BaseProvider):
                 raise
 
             version = resp.json()['version']
-            self.log.debug('powerdns_version: got version %s from server',
-                           version)
+            self.log.debug(
+                'powerdns_version: got version %s from server', version
+            )
             # The extra `-` split is to handle pre-release and source built
             # versions like 4.5.0-alpha0.435.master.gcb114252b
             self._powerdns_version = [
-                int(p.split('-')[0]) for p in version.split('.')[:3]]
+                int(p.split('-')[0]) for p in version.split('.')[:3]
+            ]
 
         return self._powerdns_version
 
@@ -273,8 +295,12 @@ class PowerDnsBaseProvider(BaseProvider):
         return self.powerdns_version >= [4, 2]
 
     def populate(self, zone, target=False, lenient=False):
-        self.log.debug('populate: name=%s, target=%s, lenient=%s', zone.name,
-                       target, lenient)
+        self.log.debug(
+            'populate: name=%s, target=%s, lenient=%s',
+            zone.name,
+            target,
+            lenient,
+        )
 
         resp = None
         try:
@@ -285,15 +311,16 @@ class PowerDnsBaseProvider(BaseProvider):
             if e.response.status_code == 401:
                 # Nicer error message for auth problems
                 raise Exception(f'PowerDNS unauthorized host={self.host}')
-            elif e.response.status_code == 404 \
-                    and self.check_status_not_found:
+            elif e.response.status_code == 404 and self.check_status_not_found:
                 # 404 means powerdns doesn't know anything about the requested
                 # domain. We'll just ignore it here and leave the zone
                 # untouched.
                 pass
-            elif e.response.status_code == 422 \
-                    and error.startswith('Could not find domain ') \
-                    and not self.check_status_not_found:
+            elif (
+                e.response.status_code == 422
+                and error.startswith('Could not find domain ')
+                and not self.check_status_not_found
+            ):
                 # 422 means powerdns doesn't know anything about the requested
                 # domain. We'll just ignore it here and leave the zone
                 # untouched.
@@ -310,35 +337,41 @@ class PowerDnsBaseProvider(BaseProvider):
             print(resp.content)
             for rrset in resp.json()['rrsets']:
                 from pprint import pprint
-                pprint({
-                    'rrset': rrset,
-                })
+
+                pprint({'rrset': rrset})
                 _type = rrset['type']
                 if _type == 'SOA':
                     continue
                 data_for = getattr(self, f'_data_for_{_type}')
                 record_name = zone.hostname_from_fqdn(rrset['name'])
-                record = Record.new(zone, record_name, data_for(rrset),
-                                    source=self, lenient=lenient)
+                record = Record.new(
+                    zone,
+                    record_name,
+                    data_for(rrset),
+                    source=self,
+                    lenient=lenient,
+                )
                 zone.add_record(record, lenient=lenient)
 
-        self.log.info('populate:   found %s records, exists=%s',
-                      len(zone.records) - before, exists)
+        self.log.info(
+            'populate:   found %s records, exists=%s',
+            len(zone.records) - before,
+            exists,
+        )
         return exists
 
     def _records_for_multiple(self, record):
-        return [{'content': v, 'disabled': False}
-                for v in record.values]
+        return [{'content': v, 'disabled': False} for v in record.values]
 
     _records_for_A = _records_for_multiple
     _records_for_AAAA = _records_for_multiple
     _records_for_NS = _records_for_multiple
 
     def _records_for_CAA(self, record):
-        return [{
-            'content': f'{v.flags} {v.tag} "{v.value}"',
-            'disabled': False
-        } for v in record.values]
+        return [
+            {'content': f'{v.flags} {v.tag} "{v.value}"', 'disabled': False}
+            for v in record.values
+        ]
 
     def _records_for_single(self, record):
         return [{'content': record.value, 'disabled': False}]
@@ -348,17 +381,16 @@ class PowerDnsBaseProvider(BaseProvider):
     _records_for_PTR = _records_for_single
 
     def _records_for_quoted(self, record):
-        return [{'content': f'"{v}"', 'disabled': False}
-                for v in record.values]
+        return [{'content': f'"{v}"', 'disabled': False} for v in record.values]
 
     _records_for_SPF = _records_for_quoted
     _records_for_TXT = _records_for_quoted
 
     def _records_for_LOC(self, record):
-        return [{
-            'content':
-                '%d %d %0.3f %s %d %d %.3f %s %0.2fm %0.2fm %0.2fm %0.2fm' %
-                (
+        return [
+            {
+                'content': '%d %d %0.3f %s %d %d %.3f %s %0.2fm %0.2fm %0.2fm %0.2fm'
+                % (
                     int(v.lat_degrees),
                     int(v.lat_minutes),
                     float(v.lat_seconds),
@@ -370,41 +402,52 @@ class PowerDnsBaseProvider(BaseProvider):
                     float(v.altitude),
                     float(v.size),
                     float(v.precision_horz),
-                    float(v.precision_vert)
+                    float(v.precision_vert),
                 ),
-            'disabled': False
-        } for v in record.values]
+                'disabled': False,
+            }
+            for v in record.values
+        ]
 
     def _records_for_MX(self, record):
-        return [{
-            'content': f'{v.preference} {v.exchange}',
-            'disabled': False
-        } for v in record.values]
+        return [
+            {'content': f'{v.preference} {v.exchange}', 'disabled': False}
+            for v in record.values
+        ]
 
     def _records_for_NAPTR(self, record):
-        return [{
-            'content': f'{v.order} {v.preference} "{v.flags}" "{v.service}" '
-            f'"{v.regexp}" {v.replacement}',
-            'disabled': False
-        } for v in record.values]
+        return [
+            {
+                'content': f'{v.order} {v.preference} "{v.flags}" "{v.service}" '
+                f'"{v.regexp}" {v.replacement}',
+                'disabled': False,
+            }
+            for v in record.values
+        ]
 
     def _records_for_SSHFP(self, record):
-        return [{
-            'content': f'{v.algorithm} {v.fingerprint_type} {v.fingerprint}',
-            'disabled': False
-        } for v in record.values]
+        return [
+            {
+                'content': f'{v.algorithm} {v.fingerprint_type} {v.fingerprint}',
+                'disabled': False,
+            }
+            for v in record.values
+        ]
 
     def _records_for_SRV(self, record):
-        return [{
-            'content': f'{v.priority} {v.weight} {v.port} {v.target}',
-            'disabled': False
-        } for v in record.values]
+        return [
+            {
+                'content': f'{v.priority} {v.weight} {v.port} {v.target}',
+                'disabled': False,
+            }
+            for v in record.values
+        ]
 
     def _records_for_PowerDnsProvider_LUA(self, record):
-        return [{
-            'content': f'{v._type} "{v.script}"',
-            'disabled': False,
-        } for v in record.values]
+        return [
+            {'content': f'{v._type} "{v.script}"', 'disabled': False}
+            for v in record.values
+        ]
 
     def _mod_Create(self, change):
         new = change.new
@@ -413,17 +456,15 @@ class PowerDnsBaseProvider(BaseProvider):
         records = records_for(new)
         from pprint import pprint
         from json import dumps
-        pprint({
-            'create/update': records,
-            'json': dumps(records)
-        })
+
+        pprint({'create/update': records, 'json': dumps(records)})
 
         return {
             'name': new.fqdn,
             'type': new._type,
             'ttl': new.ttl,
             'changetype': 'REPLACE',
-            'records': records_for(new)
+            'records': records_for(new),
         }
 
     _mod_Update = _mod_Create
@@ -434,15 +475,14 @@ class PowerDnsBaseProvider(BaseProvider):
         records_for = getattr(self, records_for)
         records = records_for(existing)
         from pprint import pprint
-        pprint({
-            'delete': records
-        })
+
+        pprint({'delete': records})
         return {
             'name': existing.fqdn,
             'type': existing._type,
             'ttl': existing.ttl,
             'changetype': 'DELETE',
-            'records': records_for(existing)
+            'records': records_for(existing),
         }
 
     def _get_error(self, http_error):
@@ -454,8 +494,9 @@ class PowerDnsBaseProvider(BaseProvider):
     def _apply(self, plan):
         desired = plan.desired
         changes = plan.changes
-        self.log.debug('_apply: zone=%s, len(changes)=%d', desired.name,
-                       len(changes))
+        self.log.debug(
+            '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
+        )
 
         mods = []
         for change in changes:
@@ -475,19 +516,18 @@ class PowerDnsBaseProvider(BaseProvider):
         except HTTPError as e:
             error = self._get_error(e)
             if not (
-                (
-                    e.response.status_code == 404 and
-                    self.check_status_not_found
-                ) or (
-                    e.response.status_code == 422 and
-                    error.startswith('Could not find domain ') and
-                    not self.check_status_not_found
+                (e.response.status_code == 404 and self.check_status_not_found)
+                or (
+                    e.response.status_code == 422
+                    and error.startswith('Could not find domain ')
+                    and not self.check_status_not_found
                 )
             ):
                 self.log.error(
                     '_apply:   status=%d, text=%s',
                     e.response.status_code,
-                    e.response.text)
+                    e.response.text,
+                )
                 raise
 
             self.log.info('_apply:   creating zone=%s', desired.name)
@@ -507,9 +547,11 @@ class PowerDnsBaseProvider(BaseProvider):
             try:
                 self._post('zones', data)
             except HTTPError as e:
-                self.log.error('_apply:   status=%d, text=%s',
-                               e.response.status_code,
-                               e.response.text)
+                self.log.error(
+                    '_apply:   status=%d, text=%s',
+                    e.response.status_code,
+                    e.response.text,
+                )
                 raise
             self.log.debug('_apply:   created')
 
@@ -517,18 +559,34 @@ class PowerDnsBaseProvider(BaseProvider):
 
 
 class PowerDnsProvider(PowerDnsBaseProvider):
-
-    def __init__(self, id, host, api_key, port=8081, nameserver_values=None,
-                 nameserver_ttl=None,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        id,
+        host,
+        api_key,
+        port=8081,
+        nameserver_values=None,
+        nameserver_ttl=None,
+        *args,
+        **kwargs,
+    ):
         self.log = logging.getLogger(f'PowerDnsProvider[{id}]')
-        self.log.debug('__init__: id=%s, host=%s, port=%d, '
-                       'nameserver_values=%s, nameserver_ttl=%d',
-                       id, host, port, nameserver_values, nameserver_ttl)
-        super(PowerDnsProvider, self).__init__(id, host=host, api_key=api_key,
-                                               port=port, *args, **kwargs)
+        self.log.debug(
+            '__init__: id=%s, host=%s, port=%d, '
+            'nameserver_values=%s, nameserver_ttl=%d',
+            id,
+            host,
+            port,
+            nameserver_values,
+            nameserver_ttl,
+        )
+        super(PowerDnsProvider, self).__init__(
+            id, host=host, api_key=api_key, port=port, *args, **kwargs
+        )
 
         if nameserver_values or nameserver_ttl:
-            raise ProviderException('nameserver_values parameter no longer '
-                                    'supported; migrate root NS records to '
-                                    'sources; see CHANGELOG.md')
+            raise ProviderException(
+                'nameserver_values parameter no longer '
+                'supported; migrate root NS records to '
+                'sources; see CHANGELOG.md'
+            )

@@ -3,7 +3,6 @@ from octodns.equality import EqualityTupleMixin
 
 
 class _PowerDnsLuaValue(EqualityTupleMixin):
-
     @classmethod
     def validate(cls, data, _type):
         if not isinstance(data, (list, tuple)):
@@ -21,10 +20,7 @@ class _PowerDnsLuaValue(EqualityTupleMixin):
 
     @property
     def data(self):
-        return {
-            'script': self.script,
-            'type': self._type,
-        }
+        return {'script': self.script, 'type': self._type}
 
     def __hash__(self):
         return hash((self._type,))
