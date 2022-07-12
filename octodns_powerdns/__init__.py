@@ -17,6 +17,8 @@ from octodns.record import Record
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 
+from .record import PowerDnsLuaRecord
+
 __VERSION__ = '0.0.1'
 
 
@@ -50,6 +52,7 @@ class PowerDnsBaseProvider(BaseProvider):
             'SSHFP',
             'SRV',
             'TXT',
+            PowerDnsLuaRecord._type,
         )
     )
     TIMEOUT = 5
@@ -240,6 +243,17 @@ class PowerDnsBaseProvider(BaseProvider):
             )
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
+    def _data_for_LUA(self, rrset):
+        values = []
+        for record in rrset['records']:
+            _type, script = record['content'].split(' ', 1)
+            values.append({'type': _type, 'script': script[1:-1]})
+        return {
+            'ttl': rrset['ttl'],
+            'type': PowerDnsLuaRecord._type,
+            'values': values,
+        }
+
     @property
     def powerdns_version(self):
         if self._powerdns_version is None:
@@ -343,7 +357,9 @@ class PowerDnsBaseProvider(BaseProvider):
         return exists
 
     def _records_for_multiple(self, record):
-        return [{'content': v, 'disabled': False} for v in record.values]
+        return [
+            {'content': v, 'disabled': False} for v in record.values
+        ], record._type
 
     _records_for_A = _records_for_multiple
     _records_for_AAAA = _records_for_multiple
@@ -353,17 +369,19 @@ class PowerDnsBaseProvider(BaseProvider):
         return [
             {'content': f'{v.flags} {v.tag} "{v.value}"', 'disabled': False}
             for v in record.values
-        ]
+        ], record._type
 
     def _records_for_single(self, record):
-        return [{'content': record.value, 'disabled': False}]
+        return [{'content': record.value, 'disabled': False}], record._type
 
     _records_for_ALIAS = _records_for_single
     _records_for_CNAME = _records_for_single
     _records_for_PTR = _records_for_single
 
     def _records_for_quoted(self, record):
-        return [{'content': f'"{v}"', 'disabled': False} for v in record.values]
+        return [
+            {'content': f'"{v}"', 'disabled': False} for v in record.values
+        ], record._type
 
     _records_for_SPF = _records_for_quoted
     _records_for_TXT = _records_for_quoted
@@ -389,13 +407,13 @@ class PowerDnsBaseProvider(BaseProvider):
                 'disabled': False,
             }
             for v in record.values
-        ]
+        ], record._type
 
     def _records_for_MX(self, record):
         return [
             {'content': f'{v.preference} {v.exchange}', 'disabled': False}
             for v in record.values
-        ]
+        ], record._type
 
     def _records_for_NAPTR(self, record):
         return [
@@ -405,7 +423,7 @@ class PowerDnsBaseProvider(BaseProvider):
                 'disabled': False,
             }
             for v in record.values
-        ]
+        ], record._type
 
     def _records_for_SSHFP(self, record):
         return [
@@ -414,7 +432,7 @@ class PowerDnsBaseProvider(BaseProvider):
                 'disabled': False,
             }
             for v in record.values
-        ]
+        ], record._type
 
     def _records_for_SRV(self, record):
         return [
@@ -423,30 +441,44 @@ class PowerDnsBaseProvider(BaseProvider):
                 'disabled': False,
             }
             for v in record.values
-        ]
+        ], record._type
+
+    def _records_for_PowerDnsProvider_LUA(self, record):
+        return [
+            {'content': f'{v._type} "{v.script}"', 'disabled': False}
+            for v in record.values
+        ], 'LUA'
 
     def _mod_Create(self, change):
         new = change.new
-        records_for = getattr(self, f'_records_for_{new._type}')
+        records_for = f'_records_for_{new._type}'.replace('/', '_')
+        records_for = getattr(self, records_for)
+        records = records_for(new)
+
+        records, _type = records_for(new)
         return {
             'name': new.fqdn,
-            'type': new._type,
+            'type': _type,
             'ttl': new.ttl,
             'changetype': 'REPLACE',
-            'records': records_for(new),
+            'records': records,
         }
 
     _mod_Update = _mod_Create
 
     def _mod_Delete(self, change):
         existing = change.existing
-        records_for = getattr(self, f'_records_for_{existing._type}')
+        records_for = f'_records_for_{existing._type}'.replace('/', '_')
+        records_for = getattr(self, records_for)
+        records = records_for(existing)
+
+        records, _type = records_for(existing)
         return {
             'name': existing.fqdn,
-            'type': existing._type,
+            'type': _type,
             'ttl': existing.ttl,
             'changetype': 'DELETE',
-            'records': records_for(existing),
+            'records': records,
         }
 
     def _get_error(self, http_error):
