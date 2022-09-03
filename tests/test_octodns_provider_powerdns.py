@@ -18,6 +18,7 @@ from unittest import TestCase
 
 from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
+from octodns.record import Record, ValidationError
 from octodns.zone import Zone
 
 from octodns_powerdns import (
@@ -25,6 +26,7 @@ from octodns_powerdns import (
     PowerDnsProvider,
     _escape_unescaped_semicolons,
 )
+from octodns_powerdns.record import PowerDnsLuaRecord
 
 EMPTY_TEXT = '''
 {
@@ -222,7 +224,7 @@ class TestPowerDnsProvider(TestCase):
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
-        self.assertEqual(19, expected_n)
+        self.assertEqual(20, expected_n)
 
         # No diffs == no changes
         with requests_mock() as mock:
@@ -230,7 +232,7 @@ class TestPowerDnsProvider(TestCase):
 
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEqual(19, len(zone.records))
+            self.assertEqual(20, len(zone.records))
             changes = expected.changes(zone, provider)
             self.assertEqual(0, len(changes))
 
@@ -329,7 +331,7 @@ class TestPowerDnsProvider(TestCase):
             'test', join(dirname(__file__), 'config'), supports_root_ns=False
         )
         source.populate(expected)
-        self.assertEqual(23, len(expected.records))
+        self.assertEqual(24, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:
@@ -448,3 +450,87 @@ class TestPowerDnsProvider(TestCase):
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;\\;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
+
+
+class TestPowerDnsLuaRecord(TestCase):
+    def test_basics(self):
+        zone = Zone('unit.tests.', [])
+
+        # no value(s)
+        with self.assertRaises(ValidationError) as ctx:
+            Record.new(
+                zone,
+                'lua',
+                {'type': PowerDnsLuaRecord._type, 'ttl': 42, 'values': []},
+            )
+        self.assertEqual(
+            'at least one value required', ctx.exception.reasons[0]
+        )
+
+        # value missing type
+        with self.assertRaises(ValidationError) as ctx:
+            Record.new(
+                zone,
+                'lua',
+                {
+                    'type': PowerDnsLuaRecord._type,
+                    'ttl': 42,
+                    'value': {'script': ''},
+                },
+            )
+        self.assertEqual('missing type', ctx.exception.reasons[0])
+
+        # value missing script
+        with self.assertRaises(ValidationError) as ctx:
+            Record.new(
+                zone,
+                'lua',
+                {
+                    'type': PowerDnsLuaRecord._type,
+                    'ttl': 42,
+                    'value': {'type': 'A'},
+                },
+            )
+        self.assertEqual('missing script', ctx.exception.reasons[0])
+
+        # valid record with a single value
+        lua = Record.new(
+            zone,
+            'lua',
+            {
+                'type': PowerDnsLuaRecord._type,
+                'ttl': 42,
+                'value': {'script': '1.2.3.4', 'type': 'A'},
+            },
+        )
+        self.assertEqual(
+            {'ttl': 42, 'value': {'script': '1.2.3.4', 'type': 'A'}}, lua.data
+        )
+
+        # valid record with a multiple values
+        luas = Record.new(
+            zone,
+            'lua',
+            {
+                'type': PowerDnsLuaRecord._type,
+                'ttl': 42,
+                'values': [
+                    {'script': '1.2.3.4', 'type': 'A'},
+                    {'script': 'fc00::42', 'type': 'AAAA'},
+                ],
+            },
+        )
+        self.assertEqual(
+            {
+                'ttl': 42,
+                'values': [
+                    {'script': '1.2.3.4', 'type': 'A'},
+                    {'script': 'fc00::42', 'type': 'AAAA'},
+                ],
+            },
+            luas.data,
+        )
+
+        # smoke tests
+        lua.__repr__()
+        hash(lua.values[0])

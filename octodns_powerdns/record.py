@@ -3,11 +3,23 @@ from octodns.equality import EqualityTupleMixin
 
 
 class _PowerDnsLuaValue(EqualityTupleMixin):
+    # See https://doc.powerdns.com/authoritative/lua-records/index.html for the
+    # LUA record docs and
+    # https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac
+    # has some good example scripts
+
     @classmethod
     def validate(cls, data, _type):
         if not isinstance(data, (list, tuple)):
             data = (data,)
         reasons = []
+        if len(data) == 0:
+            reasons.append('at least one value required')
+        for value in data:
+            if 'type' not in value:
+                reasons.append('missing type')
+            if 'script' not in value:
+                reasons.append('missing script')
         return reasons
 
     @classmethod

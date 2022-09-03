@@ -122,6 +122,14 @@ loc:
     precision_horz: 1000
     precision_vert: 2
     size: 10
+lua:
+  ttl: 42
+  type: PowerDnsProvider/LUA
+  values:
+    - script: "'1.2.3.42'"
+      type: A
+    - script: "'fc00::42'"
+      type: AAAA
 mx:
   ttl: 300
   type: MX
