@@ -283,7 +283,7 @@
             "ttl": 3600,
             "type": "CAA"
         },
-	{
+	    {
             "comments": [],
             "name": "included.unit.tests.",
             "records": [
@@ -294,6 +294,23 @@
             ],
             "ttl": 3600,
             "type": "CNAME"
+        },
+        {
+            "comments": [],
+            "name": "lua.unit.tests.",
+            "records": [
+                {
+                    "content": "A \"'1.2.3.42'\"",
+                    "disabled": false
+                },
+                {
+                    "content": "AAAA \"'fc00::42'\"",
+                    "disabled": false
+                }
+            ],
+            "ttl": 42,
+            "type": "LUA"
+
         }
     ],
     "serial": 2017012803,

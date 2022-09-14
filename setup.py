@@ -49,7 +49,7 @@ setup(
             'twine>=3.4.2',
         )
     },
-    install_requires=('octodns>=0.9.16', 'requests>=2.26.0'),
+    install_requires=('octodns>=0.9.17', 'requests>=2.26.0'),
     license='MIT',
     long_description=long_description,
     long_description_content_type='text/markdown',

@@ -1,4 +1,4 @@
-## v0.0.2 - 20??-??-?? - Root NS Records
+## v0.0.2 - 2022-??-?? - Root NS Records and (beta) LUA record support
 
 #### Nothworthy Changes
 
@@ -10,3 +10,7 @@
   replaced with configuration in yaml files. For dynamic values where
   information is sourced from an API or otherwise calculated a custom Source is
   recommended.
+* Beta-level support for PowerDnsProvider/LUA scripted records, see
+  https://doc.powerdns.com/authoritative/lua-records/index.html for their doc
+  and https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac for
+  some of what's possible.
