@@ -26,7 +26,7 @@ from octodns_powerdns import (
     PowerDnsProvider,
     _escape_unescaped_semicolons,
 )
-from octodns_powerdns.record import PowerDnsLuaRecord
+from octodns_powerdns.record import _PowerDnsLuaValue, PowerDnsLuaRecord
 
 EMPTY_TEXT = '''
 {
@@ -504,7 +504,11 @@ class TestPowerDnsLuaRecord(TestCase):
             },
         )
         self.assertEqual(
-            {'ttl': 42, 'value': {'script': '1.2.3.4', 'type': 'A'}}, lua.data
+            {
+                'ttl': 42,
+                'value': _PowerDnsLuaValue({'script': '1.2.3.4', 'type': 'A'}),
+            },
+            lua.data,
         )
 
         # valid record with a multiple values
@@ -515,8 +519,8 @@ class TestPowerDnsLuaRecord(TestCase):
                 'type': PowerDnsLuaRecord._type,
                 'ttl': 42,
                 'values': [
-                    {'script': '1.2.3.4', 'type': 'A'},
-                    {'script': 'fc00::42', 'type': 'AAAA'},
+                    _PowerDnsLuaValue({'script': '1.2.3.4', 'type': 'A'}),
+                    _PowerDnsLuaValue({'script': 'fc00::42', 'type': 'AAAA'}),
                 ],
             },
         )
@@ -524,8 +528,8 @@ class TestPowerDnsLuaRecord(TestCase):
             {
                 'ttl': 42,
                 'values': [
-                    {'script': '1.2.3.4', 'type': 'A'},
-                    {'script': 'fc00::42', 'type': 'AAAA'},
+                    _PowerDnsLuaValue({'script': '1.2.3.4', 'type': 'A'}),
+                    _PowerDnsLuaValue({'script': 'fc00::42', 'type': 'AAAA'}),
                 ],
             },
             luas.data,
