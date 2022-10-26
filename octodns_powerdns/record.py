@@ -2,7 +2,7 @@ from octodns.record import Record, ValuesMixin
 from octodns.equality import EqualityTupleMixin
 
 
-class _PowerDnsLuaValue(EqualityTupleMixin):
+class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     # See https://doc.powerdns.com/authoritative/lua-records/index.html for the
     # LUA record docs and
     # https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac
@@ -31,8 +31,24 @@ class _PowerDnsLuaValue(EqualityTupleMixin):
         self.script = value['script']
 
     @property
+    def _type(self):
+        return self['type']
+
+    @_type.setter
+    def _type(self, value):
+        self['type'] = value
+
+    @property
+    def script(self):
+        return self['script']
+
+    @script.setter
+    def script(self, value):
+        self['script'] = value
+
+    @property
     def data(self):
-        return {'script': self.script, 'type': self._type}
+        return self
 
     def __hash__(self):
         return hash((self._type,))
