@@ -388,7 +388,7 @@ class TestPowerDnsProvider(TestCase):
             )
         self.assertTrue(
             str(ctx.exception).startswith(
-                'nameserver_values parameter no longer ' 'supported'
+                'nameserver_values parameter no longer supported'
             )
         )
 
@@ -402,7 +402,7 @@ class TestPowerDnsProvider(TestCase):
             ChildProvider('text', 'non.existent', 'api-key')
         self.assertTrue(
             str(ctx.exception).startswith(
-                '_get_nameserver_record no longer ' 'supported;'
+                '_get_nameserver_record no longer supported;'
             )
         )
 
