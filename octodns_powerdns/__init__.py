@@ -2,13 +2,6 @@
 #
 #
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from requests import HTTPError, Session
 from operator import itemgetter
 import logging
@@ -68,7 +61,7 @@ class PowerDnsBaseProvider(BaseProvider):
         *args,
         **kwargs,
     ):
-        super(PowerDnsBaseProvider, self).__init__(id, *args, **kwargs)
+        super().__init__(id, *args, **kwargs)
 
         if getattr(self, '_get_nameserver_record', False):
             raise ProviderException(
@@ -576,7 +569,7 @@ class PowerDnsProvider(PowerDnsBaseProvider):
             nameserver_values,
             nameserver_ttl,
         )
-        super(PowerDnsProvider, self).__init__(
+        super().__init__(
             id, host=host, api_key=api_key, port=port, *args, **kwargs
         )
 
