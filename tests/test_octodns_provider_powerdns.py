@@ -2,13 +2,6 @@
 #
 #
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from json import loads, dumps
 from logging import getLogger
 from os.path import dirname, join
