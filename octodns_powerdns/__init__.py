@@ -61,16 +61,6 @@ class PowerDnsBaseProvider(BaseProvider):
         *args,
         **kwargs,
     ):
-        super().__init__(id, *args, **kwargs)
-
-        if getattr(self, '_get_nameserver_record', False):
-            raise ProviderException(
-                '_get_nameserver_record no longer '
-                'supported; instead migrate to using a '
-                'dynamic source for zones; see '
-                'CHANGELOG.md'
-            )
-
         self.host = host
         self.port = port
         self.scheme = scheme
@@ -81,6 +71,19 @@ class PowerDnsBaseProvider(BaseProvider):
         sess = Session()
         sess.headers.update({'X-API-Key': api_key})
         self._sess = sess
+
+        self.soa_edit_api = kwargs.pop('soa_edit_api', 'DEFAULT')
+        self.mode_of_operation = kwargs.pop('mode_of_operation', 'master')
+
+        super().__init__(id, *args, **kwargs)
+
+        if getattr(self, '_get_nameserver_record', False):
+            raise ProviderException(
+                '_get_nameserver_record no longer '
+                'supported; instead migrate to using a '
+                'dynamic source for zones; see '
+                'CHANGELOG.md'
+            )
 
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
@@ -279,8 +282,42 @@ class PowerDnsBaseProvider(BaseProvider):
         # >>> [4, 1, 3] >= [4, 3]
         # False
         if self.powerdns_version >= [4, 3]:
-            return 'DEFAULT'
+            return self._soa_edit_api
         return 'INCEPTION-INCREMENT'
+
+    @soa_edit_api.setter
+    def soa_edit_api(self, value):
+        if self.powerdns_version >= [4, 3]:
+            settings = [
+                "DEFAULT",
+                "INCREASE",
+                "EPOCH",
+                "SOA-EDIT",
+                "SOA-EDIT-INCREASE",
+            ]
+        else:
+            settings = ['INCEPTION-INCREMENT']
+        if value in settings:
+            self._soa_edit_api = value
+        else:
+            raise ValueError(f'"soa_edit_api" - possibile values: {settings}')
+
+    @property
+    def mode_of_operation(self):
+        return self._mode_of_operation
+
+    @mode_of_operation.setter
+    def mode_of_operation(self, value):
+        if self.powerdns_version >= [4, 5]:
+            settings = ["native", "primary", "secondary", "master", "slave"]
+        else:
+            settings = ["native", "master", "slave"]
+        if value in settings:
+            self._mode_of_operation = value
+        else:
+            raise ValueError(
+                f'"mode_of_operation" - possible values: {settings}'
+            )
 
     @property
     def check_status_not_found(self):
@@ -526,7 +563,7 @@ class PowerDnsBaseProvider(BaseProvider):
             # creates :-)
             data = {
                 'name': desired.name,
-                'kind': 'Master',
+                'kind': self.mode_of_operation,
                 'masters': [],
                 'nameservers': [],
                 'rrsets': mods,

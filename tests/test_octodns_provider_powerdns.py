@@ -29,6 +29,7 @@ EMPTY_TEXT = '''
     "kind": "Master",
     "last_check": 0,
     "masters": [],
+    "mode_of_operation": "master",
     "name": "xunit.tests.",
     "notified_serial": 0,
     "rrsets": [],
@@ -45,12 +46,12 @@ with open('./tests/fixtures/powerdns-full-data.json') as fh:
 
 class TestPowerDnsProvider(TestCase):
     def test_provider_version_detection(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         # Bad auth
         with requests_mock() as mock:
             mock.get(ANY, status_code=401, text='Unauthorized')
 
             with self.assertRaises(Exception) as ctx:
+                provider = PowerDnsProvider('test', 'non.existent', 'api-key')
                 provider.powerdns_version
             self.assertTrue('unauthorized' in str(ctx.exception))
 
@@ -59,6 +60,7 @@ class TestPowerDnsProvider(TestCase):
             mock.get(ANY, status_code=404, text='Not Found')
 
             with self.assertRaises(Exception) as ctx:
+                provider = PowerDnsProvider('test', 'non.existent', 'api-key')
                 provider.powerdns_version
             self.assertTrue('404' in str(ctx.exception))
 
@@ -68,6 +70,12 @@ class TestPowerDnsProvider(TestCase):
                 'http://non.existent:8081/api/v1/servers/localhost',
                 status_code=200,
                 json={'version': "4.1.10"},
+            )
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api='INCEPTION-INCREMENT',
             )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
@@ -112,17 +120,22 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(provider.powerdns_version, [4, 5, 0])
 
     def test_provider_version_config(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         # Test version 4.1.0
-        provider._powerdns_version = None
         with requests_mock() as mock:
             mock.get(
                 'http://non.existent:8081/api/v1/servers/localhost',
                 status_code=200,
                 json={'version': "4.1.10"},
             )
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api='INCEPTION-INCREMENT',
+            )
             self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            self.assertEqual(provider.mode_of_operation, 'master')
             self.assertFalse(
                 provider.check_status_not_found,
                 'check_status_not_found should be false '
@@ -138,6 +151,7 @@ class TestPowerDnsProvider(TestCase):
                 json={'version': "4.2.0"},
             )
             self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            self.assertEqual(provider.mode_of_operation, 'master')
             self.assertTrue(
                 provider.check_status_not_found,
                 'check_status_not_found should be true for version 4.2.x',
@@ -151,14 +165,71 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.3.0"},
             )
-            self.assertEqual(provider.soa_edit_api, 'DEFAULT')
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api="SOA-EDIT",
+                mode_of_operation="master",
+            )
+            self.assertEqual(provider.soa_edit_api, 'SOA-EDIT')
+            self.assertEqual(provider.mode_of_operation, 'master')
             self.assertTrue(
                 provider.check_status_not_found,
                 'check_status_not_found should be true for version 4.3.x',
             )
 
+        # Test version 4.5.0
+        # mode_of_operation primary preffered over master and secondary prefered over slave.
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.5.0"},
+            )
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api="EPOCH",
+                mode_of_operation="primary",
+            )
+            self.assertEqual(provider.soa_edit_api, 'EPOCH')
+            self.assertEqual(provider.mode_of_operation, 'primary')
+            self.assertTrue(
+                provider.check_status_not_found,
+                'check_status_not_found should be true for version 4.5.x',
+            )
+
+    def test_managed_attribute_validation(self):
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.2.0"},
+            )
+
+            with self.assertRaises(ValueError) as ctx:
+                PowerDnsProvider(
+                    'test', 'non.existent', 'api-key', soa_edit_api='EPOCH'
+                )
+            self.assertTrue(
+                '"soa_edit_api" - possibile values:' in str(ctx.exception)
+            )
+
+            with self.assertRaises(ValueError) as ctx:
+                PowerDnsProvider(
+                    'test',
+                    'non.existent',
+                    'api-key',
+                    soa_edit_api='INCEPTION-INCREMENT',
+                    mode_of_operation='primary',
+                )
+            self.assertTrue(
+                '"mode_of_operation" - possible values:' in str(ctx.exception)
+            )
+
     def test_provider(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
         # Test version detection
         with requests_mock() as mock:
@@ -166,6 +237,12 @@ class TestPowerDnsProvider(TestCase):
                 'http://non.existent:8081/api/v1/servers/localhost',
                 status_code=200,
                 json={'version': "4.1.10"},
+            )
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api='INCEPTION-INCREMENT',
             )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
@@ -317,8 +394,6 @@ class TestPowerDnsProvider(TestCase):
                 provider.apply(plan)
 
     def test_small_change(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
-
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
             'test', join(dirname(__file__), 'config'), supports_root_ns=False
@@ -333,6 +408,12 @@ class TestPowerDnsProvider(TestCase):
                 'http://non.existent:8081/api/v1/servers/localhost',
                 status_code=200,
                 json={'version': '4.1.0'},
+            )
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                soa_edit_api='INCEPTION-INCREMENT',
             )
 
             missing = Zone(expected.name, [])
@@ -370,20 +451,26 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(1, provider.apply(plan))
 
     def test_nameservers_params(self):
-
-        with self.assertRaises(ProviderException) as ctx:
-            PowerDnsProvider(
-                'test',
-                'non.existent',
-                'api-key',
-                nameserver_values=['8.8.8.8.', '9.9.9.9.'],
-                nameserver_ttl=600,
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': "4.1.10"},
             )
-        self.assertTrue(
-            str(ctx.exception).startswith(
-                'nameserver_values parameter no longer supported'
+            with self.assertRaises(ProviderException) as ctx:
+                PowerDnsProvider(
+                    'test',
+                    'non.existent',
+                    'api-key',
+                    nameserver_values=['8.8.8.8.', '9.9.9.9.'],
+                    nameserver_ttl=600,
+                    soa_edit_api='INCEPTION-INCREMENT',
+                )
+            self.assertTrue(
+                str(ctx.exception).startswith(
+                    'nameserver_values parameter no longer supported'
+                )
             )
-        )
 
         class ChildProvider(PowerDnsBaseProvider):
             log = getLogger('ChildProvider')
@@ -392,12 +479,23 @@ class TestPowerDnsProvider(TestCase):
                 pass
 
         with self.assertRaises(ProviderException) as ctx:
-            ChildProvider('text', 'non.existent', 'api-key')
-        self.assertTrue(
-            str(ctx.exception).startswith(
-                '_get_nameserver_record no longer supported;'
+            with requests_mock() as mock:
+                mock.get(
+                    'http://non.existent:8081/api/v1/servers/localhost',
+                    status_code=200,
+                    json={'version': "4.1.10"},
+                )
+                ChildProvider(
+                    'text',
+                    'non.existent',
+                    'api-key',
+                    soa_edit_api='INCEPTION-INCREMENT',
+                )
+            self.assertTrue(
+                str(ctx.exception).startswith(
+                    '_get_nameserver_record no longer supported;'
+                )
             )
-        )
 
     def test_unescaped_semicolon(self):
         # no escapes
