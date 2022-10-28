@@ -562,7 +562,7 @@ class PowerDnsProvider(PowerDnsBaseProvider):
         self.log = logging.getLogger(f'PowerDnsProvider[{id}]')
         self.log.debug(
             '__init__: id=%s, host=%s, port=%d, '
-            'nameserver_values=%s, nameserver_ttl=%d',
+            'nameserver_values=%s, nameserver_ttl=%s',
             id,
             host,
             port,
