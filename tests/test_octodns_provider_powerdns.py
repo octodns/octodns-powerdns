@@ -35,7 +35,7 @@ EMPTY_TEXT = '''
     "rrsets": [],
     "serial": 2017012801,
     "soa_edit": "",
-    "soa_edit_api": "INCEPTION-INCREMENT",
+    "soa_edit_api": "default",
     "url": "api/v1/servers/localhost/zones/xunit.tests."
 }
 '''
@@ -71,12 +71,7 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.1.10"},
             )
-            provider = PowerDnsProvider(
-                'test',
-                'non.existent',
-                'api-key',
-                soa_edit_api='INCEPTION-INCREMENT',
-            )
+            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Test version detection for second time (should stay at 4.1.10)
@@ -128,13 +123,8 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.1.10"},
             )
-            provider = PowerDnsProvider(
-                'test',
-                'non.existent',
-                'api-key',
-                soa_edit_api='INCEPTION-INCREMENT',
-            )
-            self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+            self.assertEqual(provider.soa_edit_api, 'default')
             self.assertEqual(provider.mode_of_operation, 'master')
             self.assertFalse(
                 provider.check_status_not_found,
@@ -150,7 +140,7 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.2.0"},
             )
-            self.assertEqual(provider.soa_edit_api, 'INCEPTION-INCREMENT')
+            self.assertEqual(provider.soa_edit_api, 'default')
             self.assertEqual(provider.mode_of_operation, 'master')
             self.assertTrue(
                 provider.check_status_not_found,
@@ -169,11 +159,11 @@ class TestPowerDnsProvider(TestCase):
                 'test',
                 'non.existent',
                 'api-key',
-                soa_edit_api="SOA-EDIT",
-                mode_of_operation="master",
+                soa_edit_api="soa-edit",
+                mode_of_operation="slave",
             )
-            self.assertEqual(provider.soa_edit_api, 'SOA-EDIT')
-            self.assertEqual(provider.mode_of_operation, 'master')
+            self.assertEqual(provider.soa_edit_api, 'soa-edit')
+            self.assertEqual(provider.mode_of_operation, 'slave')
             self.assertTrue(
                 provider.check_status_not_found,
                 'check_status_not_found should be true for version 4.3.x',
@@ -191,10 +181,10 @@ class TestPowerDnsProvider(TestCase):
                 'test',
                 'non.existent',
                 'api-key',
-                soa_edit_api="EPOCH",
+                soa_edit_api="epoch",
                 mode_of_operation="primary",
             )
-            self.assertEqual(provider.soa_edit_api, 'EPOCH')
+            self.assertEqual(provider.soa_edit_api, 'epoch')
             self.assertEqual(provider.mode_of_operation, 'primary')
             self.assertTrue(
                 provider.check_status_not_found,
@@ -211,18 +201,21 @@ class TestPowerDnsProvider(TestCase):
 
             with self.assertRaises(ValueError) as ctx:
                 PowerDnsProvider(
-                    'test', 'non.existent', 'api-key', soa_edit_api='EPOCH'
+                    'test',
+                    'non.existent',
+                    'api-key',
+                    soa_edit_api='inception-increment',
                 )
             self.assertTrue(
                 '"soa_edit_api" - possibile values:' in str(ctx.exception)
             )
 
+            # "Primary" is available since pdns v4.5
             with self.assertRaises(ValueError) as ctx:
                 PowerDnsProvider(
                     'test',
                     'non.existent',
                     'api-key',
-                    soa_edit_api='INCEPTION-INCREMENT',
                     mode_of_operation='primary',
                 )
             self.assertTrue(
@@ -238,12 +231,7 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.1.10"},
             )
-            provider = PowerDnsProvider(
-                'test',
-                'non.existent',
-                'api-key',
-                soa_edit_api='INCEPTION-INCREMENT',
-            )
+            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Bad auth
@@ -409,12 +397,7 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': '4.1.0'},
             )
-            provider = PowerDnsProvider(
-                'test',
-                'non.existent',
-                'api-key',
-                soa_edit_api='INCEPTION-INCREMENT',
-            )
+            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
 
             missing = Zone(expected.name, [])
             # Find and delete the SPF record
@@ -464,7 +447,6 @@ class TestPowerDnsProvider(TestCase):
                     'api-key',
                     nameserver_values=['8.8.8.8.', '9.9.9.9.'],
                     nameserver_ttl=600,
-                    soa_edit_api='INCEPTION-INCREMENT',
                 )
             self.assertTrue(
                 str(ctx.exception).startswith(
@@ -485,12 +467,7 @@ class TestPowerDnsProvider(TestCase):
                     status_code=200,
                     json={'version': "4.1.10"},
                 )
-                ChildProvider(
-                    'text',
-                    'non.existent',
-                    'api-key',
-                    soa_edit_api='INCEPTION-INCREMENT',
-                )
+                ChildProvider('text', 'non.existent', 'api-key')
             self.assertTrue(
                 str(ctx.exception).startswith(
                     '_get_nameserver_record no longer supported;'

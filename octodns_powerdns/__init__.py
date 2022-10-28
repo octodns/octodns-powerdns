@@ -58,9 +58,21 @@ class PowerDnsBaseProvider(BaseProvider):
         port=8081,
         scheme="http",
         timeout=TIMEOUT,
+        soa_edit_api='default',
+        mode_of_operation='master',
         *args,
         **kwargs,
     ):
+        super().__init__(id, *args, **kwargs)
+
+        if getattr(self, '_get_nameserver_record', False):
+            raise ProviderException(
+                '_get_nameserver_record no longer '
+                'supported; instead migrate to using a '
+                'dynamic source for zones; see '
+                'CHANGELOG.md'
+            )
+
         self.host = host
         self.port = port
         self.scheme = scheme
@@ -72,18 +84,8 @@ class PowerDnsBaseProvider(BaseProvider):
         sess.headers.update({'X-API-Key': api_key})
         self._sess = sess
 
-        self.soa_edit_api = kwargs.pop('soa_edit_api', 'DEFAULT')
-        self.mode_of_operation = kwargs.pop('mode_of_operation', 'master')
-
-        super().__init__(id, *args, **kwargs)
-
-        if getattr(self, '_get_nameserver_record', False):
-            raise ProviderException(
-                '_get_nameserver_record no longer '
-                'supported; instead migrate to using a '
-                'dynamic source for zones; see '
-                'CHANGELOG.md'
-            )
+        self.soa_edit_api = soa_edit_api
+        self.mode_of_operation = mode_of_operation
 
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
@@ -281,22 +283,18 @@ class PowerDnsBaseProvider(BaseProvider):
         # True
         # >>> [4, 1, 3] >= [4, 3]
         # False
-        if self.powerdns_version >= [4, 3]:
-            return self._soa_edit_api
-        return 'INCEPTION-INCREMENT'
+        return self._soa_edit_api
 
     @soa_edit_api.setter
     def soa_edit_api(self, value):
-        if self.powerdns_version >= [4, 3]:
-            settings = [
-                "DEFAULT",
-                "INCREASE",
-                "EPOCH",
-                "SOA-EDIT",
-                "SOA-EDIT-INCREASE",
-            ]
-        else:
-            settings = ['INCEPTION-INCREMENT']
+        settings = [
+            "default",
+            "increase",
+            "epoch",
+            "soa-edit",
+            "soa-edit-increase",
+        ]
+
         if value in settings:
             self._soa_edit_api = value
         else:

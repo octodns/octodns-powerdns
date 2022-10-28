@@ -2,8 +2,6 @@
 .coverage
 .eggs/
 .env
-.vscode/
-.python-version
 /build/
 /config/
 coverage.xml
