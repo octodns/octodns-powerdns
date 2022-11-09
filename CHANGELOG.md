@@ -1,4 +1,4 @@
-## v0.0.2 - 2022-??-?? - Root NS Records and (beta) LUA record support
+## v0.0.2 - 2022-11-09 - Root NS Records and (beta) LUA record support
 
 #### Nothworthy Changes
 
@@ -14,3 +14,4 @@
   https://doc.powerdns.com/authoritative/lua-records/index.html for their doc
   and https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac for
   some of what's possible.
+* Allow configuring mode_of_operation and soa_edit_api via provider parameters
