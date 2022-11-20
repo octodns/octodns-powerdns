@@ -231,7 +231,9 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': "4.1.10"},
             )
-            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', strict_supports=False
+            )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 
         # Bad auth
@@ -397,7 +399,9 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': '4.1.0'},
             )
-            provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', strict_supports=False
+            )
 
             missing = Zone(expected.name, [])
             # Find and delete the SPF record
