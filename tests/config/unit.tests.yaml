@@ -37,6 +37,13 @@
     - flags: 0
       tag: issue
       value: ca.unit.tests
+_853._tcp:
+  type: TLSA
+  values:
+  - certificate_association_data: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+    certificate_usage: 3
+    matching_type: 1
+    selector: 1
 _imap._tcp:
   ttl: 600
   type: SRV

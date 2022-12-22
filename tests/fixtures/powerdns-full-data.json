@@ -283,6 +283,18 @@
             "ttl": 3600,
             "type": "CAA"
         },
+        {
+            "comments": [],
+            "name": "_853._tcp.unit.tests.",
+            "records": [
+                {
+                    "content": "3 1 1 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+                    "disabled": false
+                }
+            ],
+            "ttl": 3600,
+            "type": "TLSA"
+        },
 	    {
             "comments": [],
             "name": "included.unit.tests.",

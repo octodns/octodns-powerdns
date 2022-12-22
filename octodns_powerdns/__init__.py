@@ -44,6 +44,7 @@ class PowerDnsBaseProvider(BaseProvider):
             'SPF',
             'SSHFP',
             'SRV',
+            'TLSA',
             'TXT',
             PowerDnsLuaRecord._type,
         )
@@ -120,6 +121,25 @@ class PowerDnsBaseProvider(BaseProvider):
     _data_for_A = _data_for_multiple
     _data_for_AAAA = _data_for_multiple
     _data_for_NS = _data_for_multiple
+
+    def _data_for_TLSA(self, rrset):
+        values = []
+        for record in rrset['records']:
+            (
+                certificate_usage,
+                selector,
+                matching_type,
+                certificate_association_data,
+            ) = record['content'].split(' ', 3)
+            values.append(
+                {
+                    'certificate_usage': certificate_usage,
+                    'selector': selector,
+                    'matching_type': matching_type,
+                    'certificate_association_data': certificate_association_data,
+                }
+            )
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_CAA(self, rrset):
         values = []
@@ -392,6 +412,15 @@ class PowerDnsBaseProvider(BaseProvider):
     _records_for_A = _records_for_multiple
     _records_for_AAAA = _records_for_multiple
     _records_for_NS = _records_for_multiple
+
+    def _records_for_TLSA(self, record):
+        return [
+            {
+                'content': f'{v.certificate_usage} {v.selector} {v.matching_type} {v.certificate_association_data}',
+                'disabled': False,
+            }
+            for v in record.values
+        ], record._type
 
     def _records_for_CAA(self, record):
         return [
