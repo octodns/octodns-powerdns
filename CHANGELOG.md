@@ -1,3 +1,7 @@
+## v0.0.3 - 2022-12-22 - TLSA
+
+* Add support for TLSA records
+
 ## v0.0.2 - 2022-11-09 - Root NS Records and (beta) LUA record support
 
 #### Nothworthy Changes
