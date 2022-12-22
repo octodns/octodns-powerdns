@@ -244,6 +244,18 @@
             "name": "unit.tests.",
             "records": [
                 {
+                    "content": "2371 13 2 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+                    "disabled": false
+                }
+            ],
+            "ttl": 3600,
+            "type": "DS"
+        },
+        {
+            "comments": [],
+            "name": "unit.tests.",
+            "records": [
+                {
                     "content": "1.1.1.1.",
                     "disabled": false
                 },
