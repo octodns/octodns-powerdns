@@ -384,7 +384,7 @@ class PowerDnsBaseProvider(BaseProvider):
             exists = True
             for rrset in resp.json()['rrsets']:
                 _type = rrset['type']
-                if _type in self.SUPPORTS:
+                if _type not in self.SUPPORTS:
                     continue
                 data_for = getattr(self, f'_data_for_{_type}')
                 record_name = zone.hostname_from_fqdn(rrset['name'])
