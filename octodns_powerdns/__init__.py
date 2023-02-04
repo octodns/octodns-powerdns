@@ -2,13 +2,14 @@
 #
 #
 
-from requests import HTTPError, Session
-from operator import itemgetter
 import logging
+from operator import itemgetter
 
-from octodns.record import Record
+from requests import HTTPError, Session
+
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
+from octodns.record import Record
 
 from .record import PowerDnsLuaRecord
 
