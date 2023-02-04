@@ -1,5 +1,5 @@
-from octodns.record import Record, ValuesMixin
 from octodns.equality import EqualityTupleMixin
+from octodns.record import Record, ValuesMixin
 
 
 class _PowerDnsLuaValue(EqualityTupleMixin, dict):

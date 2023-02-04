@@ -2,12 +2,14 @@
 #
 #
 
-from json import loads, dumps
+from json import dumps, loads
 from logging import getLogger
 from os.path import dirname, join
-from requests import HTTPError
-from requests_mock import ANY, mock as requests_mock
 from unittest import TestCase
+
+from requests import HTTPError
+from requests_mock import ANY
+from requests_mock import mock as requests_mock
 
 from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
@@ -19,7 +21,7 @@ from octodns_powerdns import (
     PowerDnsProvider,
     _escape_unescaped_semicolons,
 )
-from octodns_powerdns.record import _PowerDnsLuaValue, PowerDnsLuaRecord
+from octodns_powerdns.record import PowerDnsLuaRecord, _PowerDnsLuaValue
 
 EMPTY_TEXT = '''
 {
@@ -115,7 +117,6 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(provider.powerdns_version, [4, 5, 0])
 
     def test_provider_version_config(self):
-
         # Test version 4.1.0
         with requests_mock() as mock:
             mock.get(
@@ -223,7 +224,6 @@ class TestPowerDnsProvider(TestCase):
             )
 
     def test_provider(self):
-
         # Test version detection
         with requests_mock() as mock:
             mock.get(
