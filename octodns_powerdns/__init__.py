@@ -7,6 +7,7 @@ from operator import itemgetter
 
 from requests import HTTPError, Session
 
+from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.record import Record
@@ -83,7 +84,12 @@ class PowerDnsBaseProvider(BaseProvider):
         self._powerdns_version = None
 
         sess = Session()
-        sess.headers.update({'X-API-Key': api_key})
+        sess.headers.update(
+            {
+                'X-API-Key': api_key,
+                'User-Agent': f'octodns/{octodns_version} octodns-powerdns/{__VERSION__}',
+            }
+        )
         self._sess = sess
 
         self.soa_edit_api = soa_edit_api
