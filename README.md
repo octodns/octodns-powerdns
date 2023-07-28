@@ -18,18 +18,18 @@ Pinning specific versions or SHAs is recommended to avoid unplanned upgrades.
 
 ```
 # Start with the latest versions and don't just copy what's here
-octodns==0.9.14
-octodns-powerdns==0.0.1
-requests==2.26.0
+octodns==0.9.21
+octodns-powerdns==0.0.3
+requests==2.31.0
 ```
 
 ##### SHAs
 
 ```
 # Start with the latest/specific versions and don't just copy what's here
--e git+https://git@github.com/octodns/octodns.git@9da19749e28f68407a1c246dfdf65663cdc1c422#egg=octodns
--e git+https://git@github.com/octodns/octodns-powerdns.git@ec9661f8b335241ae4746eea467a8509205e6a30#egg=octodns_powerdns
-requests==2.26.0
+-e git+https://git@github.com/octodns/octodns.git@67ea0b0ea7961e37b028cfe21c463fa3e5090c8f#egg=octodns
+-e git+https://git@github.com/octodns/octodns-powerdns.git@e33349e5edfe4e12a1d179a32a5f70a8ec4c2aad#egg=octodns_powerdns
+requests==2.31.0
 ```
 
 ### Configuration
