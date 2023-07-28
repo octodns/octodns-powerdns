@@ -44,12 +44,6 @@ providers:
       port: 8081
       # The api key that grans access (required, example is using an env var)
       api_key: env/POWERDNS_API_KEY
-      # The nameservers to use for this provider (optional, default unmanaged)
-      nameserver_values:
-          - 1.2.3.4.
-          - 1.2.3.5.
-      # The nameserver record TTL when managed, (optional, default 600)
-      nameserver_ttl: 300
 ```
 
 ### Support Information
