@@ -207,21 +207,25 @@ class TestPowerDnsProvider(TestCase):
                     'api-key',
                     soa_edit_api='inception-increment',
                 )
-            self.assertTrue(
-                '"soa_edit_api" - possibile values:' in str(ctx.exception)
-            )
+            self.assertTrue('invalid soa_edit_api', str(ctx.exception))
 
             # "Primary" is available since pdns v4.5
             with self.assertRaises(ValueError) as ctx:
-                PowerDnsProvider(
+                provider = PowerDnsProvider(
                     'test',
                     'non.existent',
                     'api-key',
                     mode_of_operation='primary',
                 )
-            self.assertTrue(
-                '"mode_of_operation" - possible values:' in str(ctx.exception)
-            )
+                provider.mode_of_operation()
+            self.assertTrue('invalid mode_of_operation' in str(ctx.exception))
+
+            # "foo" is never a valid option
+            with self.assertRaises(ValueError) as ctx:
+                provider = PowerDnsProvider(
+                    'test', 'non.existent', 'api-key', mode_of_operation='foo'
+                )
+            self.assertTrue('invalid mode_of_operation' in str(ctx.exception))
 
     def test_provider(self):
         # Test version detection

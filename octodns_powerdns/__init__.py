@@ -53,6 +53,15 @@ class PowerDnsBaseProvider(BaseProvider):
     )
     TIMEOUT = 5
 
+    POWERDNS_MODES_OF_OPERATION = {
+        'native',
+        'primary',
+        'secondary',
+        'master',
+        'slave',
+    }
+    POWERDNS_LEGACY_MODES_OF_OPERATION = {'native', 'master', 'slave'}
+
     def __init__(
         self,
         id,
@@ -93,7 +102,18 @@ class PowerDnsBaseProvider(BaseProvider):
         self._sess = sess
 
         self.soa_edit_api = soa_edit_api
-        self.mode_of_operation = mode_of_operation
+        # to avoid making an API call to get the pdns version during the
+        # constructor we'll check the value against the larger set of possible
+        # values. the first time we do something that requires the mode of
+        # operation we'll do the work of fully vetting it based on version
+        if mode_of_operation not in self.POWERDNS_MODES_OF_OPERATION:
+            raise ValueError(
+                f'invalid mode_of_operation "{mode_of_operation}" - available values: {self.POWERDNS_MODES_OF_OPERATION}'
+            )
+        # start out with an unset valid
+        self._mode_of_operation = None
+        # store what we were passed so that we can check it when the time comes
+        self._mode_of_operation_arg = mode_of_operation
 
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
@@ -314,35 +334,41 @@ class PowerDnsBaseProvider(BaseProvider):
 
     @soa_edit_api.setter
     def soa_edit_api(self, value):
-        settings = [
-            "default",
-            "increase",
-            "epoch",
-            "soa-edit",
-            "soa-edit-increase",
-        ]
+        settings = {
+            'default',
+            'increase',
+            'epoch',
+            'soa-edit',
+            'soa-edit-increase',
+        }
 
         if value in settings:
             self._soa_edit_api = value
         else:
-            raise ValueError(f'"soa_edit_api" - possibile values: {settings}')
+            raise ValueError(
+                f'invalid soa_edit_api, "{value}" - available values: {settings}'
+            )
 
     @property
     def mode_of_operation(self):
-        return self._mode_of_operation
-
-    @mode_of_operation.setter
-    def mode_of_operation(self, value):
-        if self.powerdns_version >= [4, 5]:
-            settings = ["native", "primary", "secondary", "master", "slave"]
-        else:
-            settings = ["native", "master", "slave"]
-        if value in settings:
+        if self._mode_of_operation is None:
+            # start with what we were passed as a provider arg
+            value = self._mode_of_operation_arg
+            # we previously validated things against
+            # POWERDNS_MODES_OF_OPERATION, the newer/larger set. If we're
+            # running an (much) older version we need to check against the
+            # reduced set of options now that we can get the version
+            if (
+                self.powerdns_version < [4, 5]
+                and value not in self.POWERDNS_LEGACY_MODES_OF_OPERATION
+            ):
+                raise ValueError(
+                    f'invalid mode_of_operation "{value}" - available values: {self.POWERDNS_LEGACY_MODES_OF_OPERATION}'
+                )
+            # we have a value we can now confidentily use
             self._mode_of_operation = value
-        else:
-            raise ValueError(
-                f'"mode_of_operation" - possible values: {settings}'
-            )
+
+        return self._mode_of_operation
 
     @property
     def check_status_not_found(self):
