@@ -527,6 +527,21 @@ class TestPowerDnsProvider(TestCase):
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
         self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
 
+    def test_list_zones(self):
+        with requests_mock() as mock:
+            mock.get(
+                ANY,
+                status_code=200,
+                json=[
+                    {'other': 'stuff', 'name': 'zeta.net.'},
+                    {'some': 42, 'name': 'alpha.com.'},
+                ],
+            )
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', strict_supports=False
+            )
+            self.assertEqual(['alpha.com.', 'zeta.net.'], provider.list_zones())
+
 
 class TestPowerDnsLuaRecord(TestCase):
     def test_basics(self):
