@@ -1,3 +1,7 @@
+## v0.0.4 - 2023-??-?? - ???
+
+* Adds Provider.list_zones to enable new dynamic zone config functionality
+
 ## v0.0.3 - 2022-12-22 - TLSA
 
 * Add support for TLSA records
