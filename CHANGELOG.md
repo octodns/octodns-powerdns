@@ -1,4 +1,4 @@
-## v0.0.4 - 2023-??-?? - ???
+## v0.0.4 - 2023-08-03 - Stay off the network unless you really need it
 
 * Adds Provider.list_zones to enable new dynamic zone config functionality
 * Rework mode_of_operation to be fetched on-demand rather than during __init__

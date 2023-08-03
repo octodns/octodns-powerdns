@@ -14,7 +14,7 @@ from octodns.record import Record
 
 from .record import PowerDnsLuaRecord
 
-__VERSION__ = '0.0.3'
+__VERSION__ = '0.0.4'
 
 
 def _escape_unescaped_semicolons(value):
