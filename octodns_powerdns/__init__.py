@@ -375,6 +375,11 @@ class PowerDnsBaseProvider(BaseProvider):
         # >=4.2.x returns 404 when not found
         return self.powerdns_version >= [4, 2]
 
+    def list_zones(self):
+        self.log.debug('list_zones:')
+        resp = self._get('zones')
+        return sorted([z['name'] for z in resp.json()])
+
     def populate(self, zone, target=False, lenient=False):
         self.log.debug(
             'populate: name=%s, target=%s, lenient=%s',
