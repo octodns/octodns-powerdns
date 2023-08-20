@@ -48,6 +48,8 @@ providers:
       # scheme: https
       # Check SSL certificate (optional, default True)
       # ssl_verify: true
+      # Send DNS NOTIFY to secondary servers after change (optional, default false)
+      notify: true
 ```
 
 ### Support Information
