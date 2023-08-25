@@ -44,6 +44,10 @@ providers:
       port: 8081
       # The api key that grans access (required, example is using an env var)
       api_key: env/POWERDNS_API_KEY
+      # The URL scheme (optional, default http)
+      # scheme: https
+      # Check SSL certificate (optional, default True)
+      # ssl_verify: False
 ```
 
 ### Support Information
