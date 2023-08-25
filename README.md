@@ -47,7 +47,7 @@ providers:
       # The URL scheme (optional, default http)
       # scheme: https
       # Check SSL certificate (optional, default True)
-      # ssl_verify: False
+      # ssl_verify: true
 ```
 
 ### Support Information
