@@ -69,10 +69,10 @@ class PowerDnsBaseProvider(BaseProvider):
         api_key,
         port=8081,
         scheme="http",
+        ssl_verify=True,
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
-        ssl_verify=True,
         *args,
         **kwargs,
     ):
