@@ -1,3 +1,4 @@
+
 #
 #
 #
@@ -69,7 +70,7 @@ class PowerDnsBaseProvider(BaseProvider):
         api_key,
         port=8081,
         scheme="http",
-        ssl_verify=True,
+        ssl_verify=False,
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
@@ -662,6 +663,8 @@ class PowerDnsProvider(PowerDnsBaseProvider):
         host,
         api_key,
         port=8081,
+        scheme="http",
+        ssl_verify=False,
         nameserver_values=None,
         nameserver_ttl=None,
         *args,
@@ -678,7 +681,7 @@ class PowerDnsProvider(PowerDnsBaseProvider):
             nameserver_ttl,
         )
         super().__init__(
-            id, host=host, api_key=api_key, port=port, *args, **kwargs
+            id, host=host, api_key=api_key, port=port, scheme=scheme, ssl_verify=ssl_verify, *args, **kwargs
         )
 
         if nameserver_values or nameserver_ttl:
