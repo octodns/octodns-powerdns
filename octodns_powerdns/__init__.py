@@ -69,6 +69,7 @@ class PowerDnsBaseProvider(BaseProvider):
         api_key,
         port=8081,
         scheme="http",
+        ssl_verify=True,
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
@@ -99,6 +100,7 @@ class PowerDnsBaseProvider(BaseProvider):
                 'User-Agent': f'octodns/{octodns_version} octodns-powerdns/{__VERSION__}',
             }
         )
+        sess.verify = ssl_verify
         self._sess = sess
 
         self.soa_edit_api = soa_edit_api
