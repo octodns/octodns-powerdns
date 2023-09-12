@@ -1,6 +1,10 @@
-## v0.0.4 - 2023-08-03 - Stay off the network unless you really need it
+## v0.0.5 - 2023-09-12 - Known your zones
 
 * Adds Provider.list_zones to enable new dynamic zone config functionality
+* Support disabling SSL verification
+
+## v0.0.4 - 2023-08-03 - Stay off the network unless you really need it
+
 * Rework mode_of_operation to be fetched on-demand rather than during __init__
   so that the provider can be created w/o access to or credentials for the
   server. This should allow things like octodns-validate w/o connectivity.
