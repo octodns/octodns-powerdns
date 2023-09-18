@@ -38,6 +38,7 @@ class PowerDnsBaseProvider(BaseProvider):
             'ALIAS',
             'CAA',
             'CNAME',
+            'DS',
             'LOC',
             'MX',
             'NAPTR',
@@ -166,6 +167,22 @@ class PowerDnsBaseProvider(BaseProvider):
                     'selector': selector,
                     'matching_type': matching_type,
                     'certificate_association_data': certificate_association_data,
+                }
+            )
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
+
+    def _data_for_DS(self, rrset):
+        values = []
+        for record in rrset['records']:
+            (flags, protocol, algorithm, public_key) = record['content'].split(
+                ' ', 3
+            )
+            values.append(
+                {
+                    'flags': flags,
+                    'protocol': protocol,
+                    'algorithm': algorithm,
+                    'public_key': public_key,
                 }
             )
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
@@ -461,6 +478,15 @@ class PowerDnsBaseProvider(BaseProvider):
         return [
             {
                 'content': f'{v.certificate_usage} {v.selector} {v.matching_type} {v.certificate_association_data}',
+                'disabled': False,
+            }
+            for v in record.values
+        ], record._type
+
+    def _records_for_DS(self, record):
+        return [
+            {
+                'content': f'{v.flags} {v.protocol} {v.algorithm} {v.public_key}',
                 'disabled': False,
             }
             for v in record.values

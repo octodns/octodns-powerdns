@@ -335,6 +335,18 @@
             "ttl": 42,
             "type": "LUA"
 
+        },
+        {
+            "comments": [],
+            "name": "sub.unit.tests.",
+            "records": [
+                {
+                    "content": "12345 13 2 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+                    "disabled": false
+                }
+            ],
+            "ttl": 3600,
+            "type": "DS"
         }
     ],
     "serial": 2017012803,
