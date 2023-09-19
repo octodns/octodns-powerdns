@@ -1,3 +1,7 @@
+## v0.0.6 - 2023-??-?? - ???
+
+* DS Record support added
+
 ## v0.0.5 - 2023-09-12 - Known your zones
 
 * Adds Provider.list_zones to enable new dynamic zone config functionality
