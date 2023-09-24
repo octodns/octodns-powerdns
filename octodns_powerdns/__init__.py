@@ -10,7 +10,7 @@ from requests import HTTPError, Session
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
-from octodns.record import Record
+from octodns.record import Record, Rr
 
 from .record import PowerDnsLuaRecord
 
@@ -153,38 +153,13 @@ class PowerDnsBaseProvider(BaseProvider):
     _data_for_NS = _data_for_multiple
 
     def _data_for_TLSA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (
-                certificate_usage,
-                selector,
-                matching_type,
-                certificate_association_data,
-            ) = record['content'].split(' ', 3)
-            values.append(
-                {
-                    'certificate_usage': certificate_usage,
-                    'selector': selector,
-                    'matching_type': matching_type,
-                    'certificate_association_data': certificate_association_data,
-                }
-            )
+        records = rrset['records']
+        values = TlsaRecord.parse_rdata_texts(r['content'] for r in records)
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_DS(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (flags, protocol, algorithm, public_key) = record['content'].split(
-                ' ', 3
-            )
-            values.append(
-                {
-                    'flags': flags,
-                    'protocol': protocol,
-                    'algorithm': algorithm,
-                    'public_key': public_key,
-                }
-            )
+        records = rrset['records']
+        values = DsRecord.parse_rdata_texts(r['content'] for r in records)
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_CAA(self, rrset):
@@ -438,24 +413,29 @@ class PowerDnsBaseProvider(BaseProvider):
         exists = False
 
         if resp:
+            classes = Record.registered_types()
+
             exists = True
-            for rrset in resp.json()['rrsets']:
-                _type = rrset['type']
+
+            rrs = []
+            for rr in resp.json()['rrsets']:
+                _type = rr['type']
                 _provider_specific_type = f'PowerDnsProvider/{_type}'
-                if (
-                    _type not in self.SUPPORTS
-                    and _provider_specific_type not in self.SUPPORTS
-                ):
-                    continue
-                data_for = getattr(self, f'_data_for_{_type}')
-                record_name = zone.hostname_from_fqdn(rrset['name'])
-                record = Record.new(
-                    zone,
-                    record_name,
-                    data_for(rrset),
-                    source=self,
-                    lenient=lenient,
-                )
+                if _type not in self.SUPPORTS:
+                    if _provider_specific_type not in self.SUPPORTS:
+                        continue
+                    _type = _provider_specific_type
+
+                name = zone.hostname_from_fqdn(rr['name'])
+                ttl = rr['ttl']
+                for rdata in rr['records']:
+                    content = rdata['content']
+                    rrs.append(Rr(name, _type, ttl, content))
+
+            for record in Record.from_rrs(zone, rrs, lenient=lenient):
+                # TODO: once source param is supported in from_rrs and we
+                # require a new enough version add it above and remove this
+                record.source = self
                 zone.add_record(record, lenient=lenient)
 
         self.log.info(

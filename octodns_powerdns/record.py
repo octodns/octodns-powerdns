@@ -26,6 +26,14 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     def process(cls, values):
         return [_PowerDnsLuaValue(v) for v in values]
 
+    @classmethod
+    def parse_rdata_text(cls, value):
+        try:
+            _type, script = value.split(' ', 1)
+        except ValueError:
+            raise RrParseError()
+        return {'type': _type, 'script': script}
+
     def __init__(self, value):
         self._type = value['type']
         self.script = value['script']
