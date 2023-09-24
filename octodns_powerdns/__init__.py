@@ -10,7 +10,7 @@ from requests import HTTPError, Session
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
-from octodns.record import Record
+from octodns.record.ds import DsValue, Record
 
 from .record import PowerDnsLuaRecord
 
@@ -62,6 +62,10 @@ class PowerDnsBaseProvider(BaseProvider):
         'slave',
     }
     POWERDNS_LEGACY_MODES_OF_OPERATION = {'native', 'master', 'slave'}
+
+    # TODO: once we require octoDNS 2.0 this backwards compatibility code can go
+    # away
+    OLD_DS_FIELDS = hasattr(DsValue, 'flags')
 
     def __init__(
         self,
@@ -174,17 +178,25 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_DS(self, rrset):
         values = []
         for record in rrset['records']:
-            (flags, protocol, algorithm, public_key) = record['content'].split(
+            (key_tag, algorithm, digest_type, digest) = record['content'].split(
                 ' ', 3
             )
-            values.append(
-                {
-                    'flags': flags,
-                    'protocol': protocol,
-                    'algorithm': algorithm,
-                    'public_key': public_key,
+            if self.OLD_DS_FIELDS:
+                value = {
+                    'flags': key_tag,
+                    'protocol': algorithm,
+                    'algorithm': digest_type,
+                    'public_key': digest,
                 }
-            )
+            else:
+                value = {
+                    'key_tag': key_tag,
+                    'algorithm': algorithm,
+                    'digest_type': digest_type,
+                    'digest': digest,
+                }
+            values.append(value)
+
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_CAA(self, rrset):
@@ -484,13 +496,16 @@ class PowerDnsBaseProvider(BaseProvider):
         ], record._type
 
     def _records_for_DS(self, record):
-        return [
-            {
-                'content': f'{v.flags} {v.protocol} {v.algorithm} {v.public_key}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
+        data = []
+        for v in record.values:
+            if self.OLD_DS_FIELDS:
+                content = f'{v.flags} {v.protocol} {v.algorithm} {v.public_key}'
+            else:
+                content = (
+                    f'{v.key_tag} {v.algorithm} {v.digest_type} {v.digest}'
+                )
+            data.append({'content': content, 'disabled': False})
+        return data, record._type
 
     def _records_for_CAA(self, record):
         return [
