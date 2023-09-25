@@ -10,7 +10,8 @@ from requests import HTTPError, Session
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
-from octodns.record.ds import DsValue, Record
+from octodns.record import Record
+from octodns.record.ds import DsValue
 
 from .record import PowerDnsLuaRecord
 
