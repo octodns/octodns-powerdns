@@ -542,6 +542,92 @@ class TestPowerDnsProvider(TestCase):
             )
             self.assertEqual(['alpha.com.', 'zeta.net.'], provider.list_zones())
 
+    def test_data_for_DS_compat(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+
+        rrset = {
+            'records': [{'content': 'one two three four'}],
+            'ttl': 42,
+            'type': 'DS',
+        }
+
+        # old
+        provider.OLD_DS_FIELDS = True
+        value = provider._data_for_DS(rrset)['values'][0]
+        self.assertEqual(
+            {
+                'algorithm': 'three',
+                'flags': 'one',
+                'protocol': 'two',
+                'public_key': 'four',
+            },
+            value,
+        )
+
+        # new
+        provider.OLD_DS_FIELDS = False
+        value = provider._data_for_DS(rrset)['values'][0]
+        self.assertEqual(
+            {
+                'algorithm': 'two',
+                'digest': 'four',
+                'digest_type': 'three',
+                'key_tag': 'one',
+            },
+            value,
+        )
+
+    def test_records_for_DS_compat(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+
+        class DummyRecord:
+            _type = 'DS'
+
+            def __init__(self, value):
+                self.values = [value]
+
+        class OldFields:
+            flags = 'flags'
+            protocol = 'protocol'
+            algorithm = 'algorithm'
+            public_key = 'public_key'
+
+        old_fields = OldFields()
+
+        class NewFields:
+            key_tag = 'key_tag'
+            algorithm = 'algorithm'
+            digest_type = 'digest_type'
+            digest = 'digest'
+
+        new_fields = NewFields()
+
+        # old
+        provider.OLD_DS_FIELDS = True
+        data = provider._records_for_DS(DummyRecord(old_fields))[0]
+        self.assertEqual(
+            [
+                {
+                    'content': 'flags protocol algorithm public_key',
+                    'disabled': False,
+                }
+            ],
+            data,
+        )
+
+        # new
+        provider.OLD_DS_FIELDS = False
+        data = provider._records_for_DS(DummyRecord(new_fields))[0]
+        self.assertEqual(
+            [
+                {
+                    'content': 'key_tag algorithm digest_type digest',
+                    'disabled': False,
+                }
+            ],
+            data,
+        )
+
 
 class TestPowerDnsLuaRecord(TestCase):
     def test_basics(self):
