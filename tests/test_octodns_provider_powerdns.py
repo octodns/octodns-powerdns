@@ -453,7 +453,7 @@ class TestPowerDnsProvider(TestCase):
             mock.get(
                 'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests.',
                 status_code=200,
-                text=FULL_TEXT
+                text=FULL_TEXT,
             )
             mock.get(
                 'http://non.existent:8081/api/v1/servers/localhost',
@@ -461,7 +461,10 @@ class TestPowerDnsProvider(TestCase):
                 json={'version': '4.1.0'},
             )
             provider = PowerDnsProvider(
-                'test', 'non.existent', 'api-key', strict_supports=False,
+                'test',
+                'non.existent',
+                'api-key',
+                strict_supports=False,
                 notify=True,
             )
 
@@ -485,7 +488,7 @@ class TestPowerDnsProvider(TestCase):
             mock.patch(
                 'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests.',
                 status_code=204,
-                text=mock_notify  # PUT /notify is invoked after PATCHing the zone
+                text=mock_notify,  # PUT /notify is invoked after PATCHing the zone
             )
 
             self.assertEqual(1, provider.apply(plan))
