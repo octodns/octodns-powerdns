@@ -441,6 +441,55 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(1, len(plan.changes))
             self.assertEqual(1, provider.apply(plan))
 
+    def test_notify(self):
+        expected = Zone('unit.tests.', [])
+        source = YamlProvider(
+            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+        )
+        source.populate(expected)
+
+        # PUT /servers/{server_id}/zones/{zone_id}/notify should be invoked in apply()
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests.',
+                status_code=200,
+                text=FULL_TEXT
+            )
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost',
+                status_code=200,
+                json={'version': '4.1.0'},
+            )
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', strict_supports=False,
+                notify=True,
+            )
+
+            missing = Zone(expected.name, [])
+            # Find and delete the SPF record
+            for record in expected.records:
+                if record._type != 'SPF':
+                    missing.add_record(record)
+
+            plan = provider.plan(missing)
+            self.assertEqual(1, len(plan.changes))
+
+            def mock_notify(request, context):
+                mock.put(
+                    'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests./notify',
+                    status_code=200,
+                    text='',
+                )
+                return ''
+
+            mock.patch(
+                'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests.',
+                status_code=204,
+                text=mock_notify  # PUT /notify is invoked after PATCHing the zone
+            )
+
+            self.assertEqual(1, provider.apply(plan))
+
     def test_nameservers_params(self):
         with requests_mock() as mock:
             mock.get(
