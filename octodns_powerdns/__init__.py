@@ -706,16 +706,7 @@ class PowerDnsBaseProvider(BaseProvider):
 
     def _request_notify(self, zoneid):
         self.log.debug('_request_notify: requesting notification: %s', zoneid)
-        try:
-            self._put(f'zones/{zoneid}/notify')
-        except HTTPError as e:
-            self.log.error(
-                '_request_notify:  status=%d, text=%s',
-                e.response.status_code,
-                e.response.text,
-            )
-            raise
-        self.log.debug('_request_notify: requested notification: %s', zoneid)
+        self._put(f'zones/{zoneid}/notify')
 
 
 class PowerDnsProvider(PowerDnsBaseProvider):
