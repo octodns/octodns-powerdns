@@ -79,6 +79,7 @@ class PowerDnsBaseProvider(BaseProvider):
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
+        notify=False,
         *args,
         **kwargs,
     ):
@@ -96,6 +97,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.port = port
         self.scheme = scheme
         self.timeout = timeout
+        self.notify = notify
 
         self._powerdns_version = None
 
@@ -141,6 +143,9 @@ class PowerDnsBaseProvider(BaseProvider):
 
     def _post(self, path, data=None):
         return self._request('POST', path, data=data)
+
+    def _put(self, path, data=None):
+        return self._request('PUT', path, data=data)
 
     def _patch(self, path, data=None):
         return self._request('PATCH', path, data=data)
@@ -694,7 +699,14 @@ class PowerDnsBaseProvider(BaseProvider):
                 raise
             self.log.debug('_apply:   created')
 
+        if self.notify:
+            self._request_notify(desired.name)
+
         self.log.debug('_apply:   complete')
+
+    def _request_notify(self, zoneid):
+        self.log.debug('_request_notify: requesting notification: %s', zoneid)
+        self._put(f'zones/{zoneid}/notify')
 
 
 class PowerDnsProvider(PowerDnsBaseProvider):
