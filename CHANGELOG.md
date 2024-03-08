@@ -1,6 +1,7 @@
-## v0.0.6 - 2023-??-?? - ???
+## v0.0.6 - 2024-??-?? - ???
 
 * DS Record support added
+* Fix for url formatting of port when it's of type float
 
 ## v0.0.5 - 2023-09-12 - Known your zones
 
