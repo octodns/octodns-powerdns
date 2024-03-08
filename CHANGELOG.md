@@ -1,4 +1,4 @@
-## v0.0.6 - 2024-??-?? - ???
+## v0.0.6 - 2024-03-08 - Get port type straight
 
 * DS Record support added
 * Fix for url formatting of port when it's of type float
