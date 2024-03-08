@@ -231,12 +231,18 @@ class TestPowerDnsProvider(TestCase):
         # Test version detection
         with requests_mock() as mock:
             mock.get(
-                'http://non.existent:8081/api/v1/servers/localhost',
+                'http://non.existent:8082/api/v1/servers/localhost',
                 status_code=200,
                 json={'version': "4.1.10"},
             )
             provider = PowerDnsProvider(
-                'test', 'non.existent', 'api-key', strict_supports=False
+                'test',
+                'non.existent',
+                'api-key',
+                strict_supports=False,
+                # specifically testing a float here to make sure it doesn't
+                # include the .1 when applied to the url
+                port=8082.1,
             )
             self.assertEqual(provider.powerdns_version, [4, 1, 10])
 

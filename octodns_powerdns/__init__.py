@@ -95,7 +95,7 @@ class PowerDnsBaseProvider(BaseProvider):
             )
 
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.scheme = scheme
         self.timeout = timeout
         self.notify = notify
@@ -130,7 +130,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.log.debug('_request: method=%s, path=%s', method, path)
 
         url = (
-            f'{self.scheme}://{self.host}:{self.port}/api/v1/servers/'
+            f'{self.scheme}://{self.host}:{self.port:d}/api/v1/servers/'
             f'localhost/{path}'.rstrip('/')
         )
         # Strip trailing / from url.
