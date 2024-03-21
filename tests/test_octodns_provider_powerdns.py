@@ -773,3 +773,22 @@ class TestPowerDnsLuaRecord(TestCase):
         # smoke tests
         lua.__repr__()
         hash(lua.values[0])
+
+    def test_lua_validate(self):
+        val = {'type': 'A', 'script': ''}
+        # single value
+        self.assertFalse(
+            _PowerDnsLuaValue.validate(val, PowerDnsLuaRecord._type)
+        )
+        # tuple of values
+        self.assertFalse(
+            _PowerDnsLuaValue.validate((val), PowerDnsLuaRecord._type)
+        )
+        # list of values
+        self.assertFalse(
+            _PowerDnsLuaValue.validate([val, val], PowerDnsLuaRecord._type)
+        )
+
+        # list w/a bad value
+        got = _PowerDnsLuaValue.validate([val, {}], PowerDnsLuaRecord._type)
+        self.assertEqual(['missing type', 'missing script'], got)
