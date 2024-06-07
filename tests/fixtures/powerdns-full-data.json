@@ -347,6 +347,34 @@
             ],
             "ttl": 3600,
             "type": "DS"
+        },
+        {
+            "comments": [],
+            "name": "https.unit.tests.",
+            "records": [
+                {
+                    "content": "1 www.unit.tests.",
+                    "disabled": false
+                }
+            ],
+            "ttl": 3600,
+            "type": "HTTPS"
+        },
+        {
+            "comments": [],
+            "name": "svcb.unit.tests.",
+            "records": [
+                {
+                    "content": "1 www.unit.tests.",
+                    "disabled": false
+                },
+                {
+                    "content": "2 backups.unit.tests.",
+                    "disabled": false
+                }
+            ],
+            "ttl": 3600,
+            "type": "SVCB"
         }
     ],
     "serial": 2017012803,

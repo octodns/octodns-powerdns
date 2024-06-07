@@ -96,6 +96,11 @@ excluded:
     - test
   type: CNAME
   value: unit.tests.
+https:
+  type: HTTPS
+  value:
+    svcpriority: 1
+    targetname: www.unit.tests.
 ignored:
   octodns:
     ignored: true
@@ -190,6 +195,13 @@ sub:
       flags: 12345
       protocol: 13
       public_key: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+svcb:
+  type: SVCB
+  values:
+    - svcpriority: 1
+      targetname: www.unit.tests.
+    - svcpriority: 2
+      targetname: backups.unit.tests.
 txt:
   ttl: 600
   type: TXT

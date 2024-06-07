@@ -13,6 +13,13 @@ from octodns.provider.base import BaseProvider
 from octodns.record import Record
 from octodns.record.ds import DsValue
 
+try:  # pragma: no cover
+    from octodns.record.svcb import SvcbValue
+
+    SUPPORTS_SVCB = True
+except ImportError:  # pragma: no cover
+    SUPPORTS_SVCB = False
+
 from .record import PowerDnsLuaRecord
 
 # TODO: remove __VERSION__ with the next major version release
@@ -54,6 +61,11 @@ class PowerDnsBaseProvider(BaseProvider):
             PowerDnsLuaRecord._type,
         )
     )
+    # These are only supported if we have a new enough octoDNS core
+    if SUPPORTS_SVCB:  # pragma: no cover
+        SUPPORTS.add('HTTPS')
+        SUPPORTS.add('SVCB')
+
     TIMEOUT = 5
 
     POWERDNS_MODES_OF_OPERATION = {
@@ -326,6 +338,15 @@ class PowerDnsBaseProvider(BaseProvider):
             )
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
+    def _data_for_SVCB(self, rrset):
+        values = []
+        for record in rrset['records']:
+            value = SvcbValue.parse_rdata_text(record['content'])
+            values.append(value)
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
+
+    _data_for_HTTPS = _data_for_SVCB
+
     def _data_for_LUA(self, rrset):
         values = []
         for record in rrset['records']:
@@ -591,6 +612,13 @@ class PowerDnsBaseProvider(BaseProvider):
             }
             for v in record.values
         ], record._type
+
+    def _records_for_SVCB(self, record):
+        return [
+            {'content': v.rdata_text, 'disabled': False} for v in record.values
+        ], record._type
+
+    _records_for_HTTPS = _records_for_SVCB
 
     def _records_for_PowerDnsProvider_LUA(self, record):
         return [
