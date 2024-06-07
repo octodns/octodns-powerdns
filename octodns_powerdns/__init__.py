@@ -14,6 +14,7 @@ from octodns.record import Record
 from octodns.record.ds import DsValue
 
 try:  # pragma: no cover
+    from octodns.record.https import HttpsValue
     from octodns.record.svcb import SvcbValue
 
     SUPPORTS_SVCB = True
@@ -338,14 +339,19 @@ class PowerDnsBaseProvider(BaseProvider):
             )
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
+    def _data_for_HTTPS(self, rrset):
+        values = []
+        for record in rrset['records']:
+            value = HttpsValue.parse_rdata_text(record['content'])
+            values.append(value)
+        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
+
     def _data_for_SVCB(self, rrset):
         values = []
         for record in rrset['records']:
             value = SvcbValue.parse_rdata_text(record['content'])
             values.append(value)
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    _data_for_HTTPS = _data_for_SVCB
 
     def _data_for_LUA(self, rrset):
         values = []
