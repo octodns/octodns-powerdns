@@ -14,6 +14,7 @@ from requests_mock import mock as requests_mock
 from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
 from octodns.record import Record, ValidationError
+from octodns.record.rr import RrParseError
 from octodns.zone import Zone
 
 from octodns_powerdns import (
@@ -543,47 +544,49 @@ class TestPowerDnsProvider(TestCase):
     def test_unescaped_semicolon(self):
         # no escapes
         self.assertEqual('', _escape_unescaped_semicolons(''))
-        self.assertEqual('hello', _escape_unescaped_semicolons('hello'))
+        self.assertEqual('hello', _escape_unescaped_semicolons('"hello"'))
         self.assertEqual(
-            'hello world!', _escape_unescaped_semicolons('hello world!')
+            'hello world!', _escape_unescaped_semicolons('"hello world!"')
         )
 
         # good
-        self.assertEqual('\\;', _escape_unescaped_semicolons('\\;'))
-        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo\\;'))
+        self.assertEqual('\\;', _escape_unescaped_semicolons('"\\;"'))
+        self.assertEqual('foo\\;', _escape_unescaped_semicolons('"foo\\;"'))
         self.assertEqual(
-            'foo\\; bar\\;', _escape_unescaped_semicolons('foo\\; bar\\;')
+            'foo\\; bar\\;', _escape_unescaped_semicolons('"foo\\; bar\\;"')
         )
         self.assertEqual(
             'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo\\; bar\\; baz\\;'),
+            _escape_unescaped_semicolons('"foo\\; bar\\; baz\\;"'),
         )
 
         # missing
-        self.assertEqual('\\;', _escape_unescaped_semicolons(';'))
-        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo;'))
+        self.assertEqual('\\;', _escape_unescaped_semicolons('";"'))
+        self.assertEqual('foo\\;', _escape_unescaped_semicolons('"foo;"'))
         self.assertEqual(
-            'foo\\; bar\\;', _escape_unescaped_semicolons('foo; bar;')
+            'foo\\; bar\\;', _escape_unescaped_semicolons('"foo; bar;"')
         )
         self.assertEqual(
             'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo; bar; baz;'),
+            _escape_unescaped_semicolons('"foo; bar; baz;"'),
         )
 
         # partial
         self.assertEqual(
             'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo; bar\\; baz;'),
+            _escape_unescaped_semicolons('"foo; bar\\; baz;"'),
         )
 
         # double escaped, left alone
-        self.assertEqual('foo\\\\;', _escape_unescaped_semicolons('foo\\\\;'))
+        self.assertEqual('foo\\\\;', _escape_unescaped_semicolons('"foo\\\\;"'))
 
         # double ;;
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;\\;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;\\;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
+        self.assertEqual(
+            'foo\\;\\;', _escape_unescaped_semicolons('"foo\\;\\;"')
+        )
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('"foo;\\;"'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('"foo\\;;"'))
+        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('"foo;;"'))
 
     def test_list_zones(self):
         with requests_mock() as mock:
@@ -611,7 +614,7 @@ class TestPowerDnsProvider(TestCase):
 
         # old
         provider.OLD_DS_FIELDS = True
-        value = provider._data_for_DS(rrset)['values'][0]
+        value = provider._data_for('DS', rrset)['value']
         self.assertEqual(
             {
                 'algorithm': 'three',
@@ -624,7 +627,7 @@ class TestPowerDnsProvider(TestCase):
 
         # new
         provider.OLD_DS_FIELDS = False
-        value = provider._data_for_DS(rrset)['values'][0]
+        value = provider._data_for('DS', rrset)['value']
         self.assertEqual(
             {
                 'algorithm': 'two',
@@ -773,6 +776,15 @@ class TestPowerDnsLuaRecord(TestCase):
         # smoke tests
         lua.__repr__()
         hash(lua.values[0])
+
+    def test_lua_parse_rdata_text(self):
+        self.assertEqual(
+            {'script': '1.2.3.4', 'type': 'A'},
+            _PowerDnsLuaValue.parse_rdata_text('A "1.2.3.4"'),
+        )
+
+        with self.assertRaises(RrParseError):
+            _PowerDnsLuaValue.parse_rdata_text('A'),
 
     def test_lua_validate(self):
         val = {'type': 'A', 'script': ''}

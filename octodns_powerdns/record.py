@@ -1,5 +1,6 @@
 from octodns.equality import EqualityTupleMixin
 from octodns.record import Record, ValuesMixin
+from octodns.record.rr import RrParseError
 
 
 class _PowerDnsLuaValue(EqualityTupleMixin, dict):
@@ -7,6 +8,14 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     # LUA record docs and
     # https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac
     # has some good example scripts
+
+    @classmethod
+    def parse_rdata_text(self, value):
+        try:
+            _type, script = value.split(' ', 1)
+        except ValueError:
+            raise RrParseError()
+        return {'type': _type, 'script': script[1:-1]}
 
     @classmethod
     def validate(cls, data, _type):
@@ -57,6 +66,7 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
         return (self._type, self.script)
 
     def __repr__(self):
+        return f'{self._type} {self.script}'
         return f'{self._type} (script)'
 
 

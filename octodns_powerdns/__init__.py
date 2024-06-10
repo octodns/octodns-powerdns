@@ -14,10 +14,12 @@ from octodns.record import Record
 from octodns.record.ds import DsValue
 
 try:  # pragma: no cover
-    from octodns.record.https import HttpsValue
     from octodns.record.svcb import SvcbValue
 
     SUPPORTS_SVCB = True
+
+    # quell warnings
+    SvcbValue
 except ImportError:  # pragma: no cover
     SUPPORTS_SVCB = False
 
@@ -28,6 +30,7 @@ __version__ = __VERSION__ = '0.0.6'
 
 
 def _escape_unescaped_semicolons(value):
+    value = value[1:-1]
     pieces = value.split(';')
     if len(pieces) == 1:
         return value
@@ -139,6 +142,22 @@ class PowerDnsBaseProvider(BaseProvider):
         # store what we were passed so that we can check it when the time comes
         self._mode_of_operation_arg = mode_of_operation
 
+        # doing this once here to "cache" thing, can't do it at the top level
+        # b/c it can't see SUPPORTS
+        self._rdata_parsers = {
+            t: c._value_type.parse_rdata_text
+            for t, c in Record.registered_types().items()
+            if t in self.SUPPORTS
+        }
+
+        # PowerDNS semicolon handling differs from SPEC
+        self._rdata_parsers['SPF'] = _escape_unescaped_semicolons
+        self._rdata_parsers['TXT'] = _escape_unescaped_semicolons
+
+        # TODO: once we require octoDNS 2.0 this backwards compatibility code
+        # can go away
+        self._rdata_parsers['DS'] = self._DS_parse_rdata_text_compat
+
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
 
@@ -164,204 +183,30 @@ class PowerDnsBaseProvider(BaseProvider):
     def _patch(self, path, data=None):
         return self._request('PATCH', path, data=data)
 
-    def _data_for_multiple(self, rrset):
-        # TODO: geo not supported
+    def _DS_parse_rdata_text_compat(self, value):
+        ret = DsValue.parse_rdata_text(value)
+        if self.OLD_DS_FIELDS:
+            return {
+                'flags': ret['key_tag'],
+                'protocol': ret['algorithm'],
+                'algorithm': ret['digest_type'],
+                'public_key': ret['digest'],
+            }
+        return ret
+
+    def _data_for(self, _type, rrset):
+        rdata_parser = self._rdata_parsers[_type]
+        records = rrset['records']
+        if len(records) > 1:
+            return {
+                'type': _type,
+                'values': [rdata_parser(r['content']) for r in records],
+                'ttl': rrset['ttl'],
+            }
         return {
-            'type': rrset['type'],
-            'values': [r['content'] for r in rrset['records']],
+            'type': _type,
+            'value': rdata_parser(records[0]['content']),
             'ttl': rrset['ttl'],
-        }
-
-    _data_for_A = _data_for_multiple
-    _data_for_AAAA = _data_for_multiple
-    _data_for_NS = _data_for_multiple
-
-    def _data_for_TLSA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (
-                certificate_usage,
-                selector,
-                matching_type,
-                certificate_association_data,
-            ) = record['content'].split(' ', 3)
-            values.append(
-                {
-                    'certificate_usage': certificate_usage,
-                    'selector': selector,
-                    'matching_type': matching_type,
-                    'certificate_association_data': certificate_association_data,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_DS(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (key_tag, algorithm, digest_type, digest) = record['content'].split(
-                ' ', 3
-            )
-            if self.OLD_DS_FIELDS:
-                value = {
-                    'flags': key_tag,
-                    'protocol': algorithm,
-                    'algorithm': digest_type,
-                    'public_key': digest,
-                }
-            else:
-                value = {
-                    'key_tag': key_tag,
-                    'algorithm': algorithm,
-                    'digest_type': digest_type,
-                    'digest': digest,
-                }
-            values.append(value)
-
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_CAA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            flags, tag, value = record['content'].split(' ', 2)
-            values.append({'flags': flags, 'tag': tag, 'value': value[1:-1]})
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_single(self, rrset):
-        return {
-            'type': rrset['type'],
-            'value': rrset['records'][0]['content'],
-            'ttl': rrset['ttl'],
-        }
-
-    _data_for_ALIAS = _data_for_single
-    _data_for_CNAME = _data_for_single
-    _data_for_PTR = _data_for_single
-
-    def _data_for_quoted(self, rrset):
-        return {
-            'type': rrset['type'],
-            'values': [
-                _escape_unescaped_semicolons(r['content'][1:-1])
-                for r in rrset['records']
-            ],
-            'ttl': rrset['ttl'],
-        }
-
-    _data_for_SPF = _data_for_quoted
-    _data_for_TXT = _data_for_quoted
-
-    def _data_for_LOC(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (
-                lat_degrees,
-                lat_minutes,
-                lat_seconds,
-                lat_direction,
-                long_degrees,
-                long_minutes,
-                long_seconds,
-                long_direction,
-                altitude,
-                size,
-                precision_horz,
-                precision_vert,
-            ) = (record['content'].replace('m', '').split(' ', 11))
-            values.append(
-                {
-                    'lat_degrees': int(lat_degrees),
-                    'lat_minutes': int(lat_minutes),
-                    'lat_seconds': float(lat_seconds),
-                    'lat_direction': lat_direction,
-                    'long_degrees': int(long_degrees),
-                    'long_minutes': int(long_minutes),
-                    'long_seconds': float(long_seconds),
-                    'long_direction': long_direction,
-                    'altitude': float(altitude),
-                    'size': float(size),
-                    'precision_horz': float(precision_horz),
-                    'precision_vert': float(precision_vert),
-                }
-            )
-        return {'ttl': rrset['ttl'], 'type': rrset['type'], 'values': values}
-
-    def _data_for_MX(self, rrset):
-        values = []
-        for record in rrset['records']:
-            preference, exchange = record['content'].split(' ', 1)
-            values.append({'preference': preference, 'exchange': exchange})
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_NAPTR(self, rrset):
-        values = []
-        for record in rrset['records']:
-            order, preference, flags, service, regexp, replacement = record[
-                'content'
-            ].split(' ', 5)
-            values.append(
-                {
-                    'order': order,
-                    'preference': preference,
-                    'flags': flags[1:-1],
-                    'service': service[1:-1],
-                    'regexp': regexp[1:-1],
-                    'replacement': replacement,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SSHFP(self, rrset):
-        values = []
-        for record in rrset['records']:
-            algorithm, fingerprint_type, fingerprint = record['content'].split(
-                ' ', 2
-            )
-            values.append(
-                {
-                    'algorithm': algorithm,
-                    'fingerprint_type': fingerprint_type,
-                    'fingerprint': fingerprint,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SRV(self, rrset):
-        values = []
-        for record in rrset['records']:
-            priority, weight, port, target = record['content'].split(' ', 3)
-            values.append(
-                {
-                    'priority': priority,
-                    'weight': weight,
-                    'port': port,
-                    'target': target,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_HTTPS(self, rrset):
-        values = []
-        for record in rrset['records']:
-            value = HttpsValue.parse_rdata_text(record['content'])
-            values.append(value)
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SVCB(self, rrset):
-        values = []
-        for record in rrset['records']:
-            value = SvcbValue.parse_rdata_text(record['content'])
-            values.append(value)
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_LUA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            _type, script = record['content'].split(' ', 1)
-            values.append({'type': _type, 'script': script[1:-1]})
-        return {
-            'ttl': rrset['ttl'],
-            'type': PowerDnsLuaRecord._type,
-            'values': values,
         }
 
     @property
@@ -487,18 +332,15 @@ class PowerDnsBaseProvider(BaseProvider):
             exists = True
             for rrset in resp.json()['rrsets']:
                 _type = rrset['type']
-                _provider_specific_type = f'PowerDnsProvider/{_type}'
-                if (
-                    _type not in self.SUPPORTS
-                    and _provider_specific_type not in self.SUPPORTS
-                ):
+                if _type == 'LUA':
+                    _type = f'PowerDnsProvider/{_type}'
+                elif _type not in self.SUPPORTS:
                     continue
-                data_for = getattr(self, f'_data_for_{_type}')
                 record_name = zone.hostname_from_fqdn(rrset['name'])
                 record = Record.new(
                     zone,
                     record_name,
-                    data_for(rrset),
+                    self._data_for(_type, rrset),
                     source=self,
                     lenient=lenient,
                 )
