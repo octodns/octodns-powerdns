@@ -1,3 +1,7 @@
+## v0.0.? - 2024-??-?? - ???
+
+* Move parsing/rdata handling to use octoDNS core functionality
+
 ## v0.0.6 - 2024-03-08 - Get port type straight
 
 * DS Record support added
