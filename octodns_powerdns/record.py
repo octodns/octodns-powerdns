@@ -65,8 +65,11 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     def _equality_tuple(self):
         return (self._type, self.script)
 
+    @property
+    def rdata_text(self):
+        return f'{self._type} "{self.script}"'
+
     def __repr__(self):
-        return f'{self._type} {self.script}'
         return f'{self._type} (script)'
 
 

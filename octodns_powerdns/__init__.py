@@ -353,134 +353,19 @@ class PowerDnsBaseProvider(BaseProvider):
         )
         return exists
 
-    def _records_for_multiple(self, record):
+    def _records_for(self, record):
+        if hasattr(record, 'values'):
+            return [
+                {'content': v.rdata_text, 'disabled': False}
+                for v in record.values
+            ], record._type
         return [
-            {'content': v, 'disabled': False} for v in record.values
+            {'content': record.value.rdata_text, 'disabled': False}
         ], record._type
-
-    _records_for_A = _records_for_multiple
-    _records_for_AAAA = _records_for_multiple
-    _records_for_NS = _records_for_multiple
-
-    def _records_for_TLSA(self, record):
-        return [
-            {
-                'content': f'{v.certificate_usage} {v.selector} {v.matching_type} {v.certificate_association_data}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_DS(self, record):
-        data = []
-        for v in record.values:
-            if self.OLD_DS_FIELDS:
-                content = f'{v.flags} {v.protocol} {v.algorithm} {v.public_key}'
-            else:
-                content = (
-                    f'{v.key_tag} {v.algorithm} {v.digest_type} {v.digest}'
-                )
-            data.append({'content': content, 'disabled': False})
-        return data, record._type
-
-    def _records_for_CAA(self, record):
-        return [
-            {'content': f'{v.flags} {v.tag} "{v.value}"', 'disabled': False}
-            for v in record.values
-        ], record._type
-
-    def _records_for_single(self, record):
-        return [{'content': record.value, 'disabled': False}], record._type
-
-    _records_for_ALIAS = _records_for_single
-    _records_for_CNAME = _records_for_single
-    _records_for_PTR = _records_for_single
-
-    def _records_for_quoted(self, record):
-        return [
-            {'content': f'"{v}"', 'disabled': False} for v in record.values
-        ], record._type
-
-    _records_for_SPF = _records_for_quoted
-    _records_for_TXT = _records_for_quoted
-
-    def _records_for_LOC(self, record):
-        return [
-            {
-                'content': '%d %d %0.3f %s %d %d %.3f %s %0.2fm %0.2fm %0.2fm %0.2fm'
-                % (
-                    int(v.lat_degrees),
-                    int(v.lat_minutes),
-                    float(v.lat_seconds),
-                    v.lat_direction,
-                    int(v.long_degrees),
-                    int(v.long_minutes),
-                    float(v.long_seconds),
-                    v.long_direction,
-                    float(v.altitude),
-                    float(v.size),
-                    float(v.precision_horz),
-                    float(v.precision_vert),
-                ),
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_MX(self, record):
-        return [
-            {'content': f'{v.preference} {v.exchange}', 'disabled': False}
-            for v in record.values
-        ], record._type
-
-    def _records_for_NAPTR(self, record):
-        return [
-            {
-                'content': f'{v.order} {v.preference} "{v.flags}" "{v.service}" '
-                f'"{v.regexp}" {v.replacement}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SSHFP(self, record):
-        return [
-            {
-                'content': f'{v.algorithm} {v.fingerprint_type} {v.fingerprint}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SRV(self, record):
-        return [
-            {
-                'content': f'{v.priority} {v.weight} {v.port} {v.target}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SVCB(self, record):
-        return [
-            {'content': v.rdata_text, 'disabled': False} for v in record.values
-        ], record._type
-
-    _records_for_HTTPS = _records_for_SVCB
-
-    def _records_for_PowerDnsProvider_LUA(self, record):
-        return [
-            {'content': f'{v._type} "{v.script}"', 'disabled': False}
-            for v in record.values
-        ], 'LUA'
 
     def _mod_Create(self, change):
         new = change.new
-        records_for = f'_records_for_{new._type}'.replace('/', '_')
-        records_for = getattr(self, records_for)
-        records = records_for(new)
-
-        records, _type = records_for(new)
+        records, _type = self._records_for(new)
         return {
             'name': new.fqdn,
             'type': _type,
@@ -493,11 +378,7 @@ class PowerDnsBaseProvider(BaseProvider):
 
     def _mod_Delete(self, change):
         existing = change.existing
-        records_for = f'_records_for_{existing._type}'.replace('/', '_')
-        records_for = getattr(self, records_for)
-        records = records_for(existing)
-
-        records, _type = records_for(existing)
+        records, _type = self._records_for(existing)
         return {
             'name': existing.fqdn,
             'type': _type,
