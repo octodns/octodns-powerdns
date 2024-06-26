@@ -33,6 +33,7 @@ class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
     SUPPORTS_ROOT_NS = True
+    SUPPORTS_MULTIVALUE_PTR = True
     SUPPORTS = set(
         (
             'A',
@@ -162,6 +163,7 @@ class PowerDnsBaseProvider(BaseProvider):
     _data_for_A = _data_for_multiple
     _data_for_AAAA = _data_for_multiple
     _data_for_NS = _data_for_multiple
+    _data_for_PTR = _data_for_multiple
 
     def _data_for_TLSA(self, rrset):
         values = []
@@ -222,7 +224,6 @@ class PowerDnsBaseProvider(BaseProvider):
 
     _data_for_ALIAS = _data_for_single
     _data_for_CNAME = _data_for_single
-    _data_for_PTR = _data_for_single
 
     def _data_for_quoted(self, rrset):
         return {
@@ -492,6 +493,7 @@ class PowerDnsBaseProvider(BaseProvider):
     _records_for_A = _records_for_multiple
     _records_for_AAAA = _records_for_multiple
     _records_for_NS = _records_for_multiple
+    _records_for_PTR = _records_for_multiple
 
     def _records_for_TLSA(self, record):
         return [
@@ -525,7 +527,6 @@ class PowerDnsBaseProvider(BaseProvider):
 
     _records_for_ALIAS = _records_for_single
     _records_for_CNAME = _records_for_single
-    _records_for_PTR = _records_for_single
 
     def _records_for_quoted(self, record):
         return [
