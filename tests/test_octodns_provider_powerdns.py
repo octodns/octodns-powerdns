@@ -294,7 +294,7 @@ class TestPowerDnsProvider(TestCase):
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
-        self.assertEqual(23, expected_n)
+        self.assertEqual(25, expected_n)
 
         # No diffs == no changes
         with requests_mock() as mock:
@@ -302,7 +302,7 @@ class TestPowerDnsProvider(TestCase):
 
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEqual(23, len(zone.records))
+            self.assertEqual(25, len(zone.records))
             changes = expected.changes(zone, provider)
             self.assertEqual(0, len(changes))
 
@@ -399,7 +399,7 @@ class TestPowerDnsProvider(TestCase):
             'test', join(dirname(__file__), 'config'), supports_root_ns=False
         )
         source.populate(expected)
-        self.assertEqual(27, len(expected.records))
+        self.assertEqual(29, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:

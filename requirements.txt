@@ -6,7 +6,7 @@ dnspython==2.6.1
 fqdn==1.5.1
 idna==3.7
 natsort==8.4.0
-octodns==1.7.0
+octodns==1.9.1
 python-dateutil==2.9.0.post0
 requests==2.32.2
 six==1.16.0
