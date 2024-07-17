@@ -3,6 +3,7 @@
 #
 
 import logging
+import urllib.parse
 from operator import itemgetter
 
 from requests import HTTPError, Session
@@ -453,10 +454,10 @@ class PowerDnsBaseProvider(BaseProvider):
             target,
             lenient,
         )
-
+        encoded_name = urllib.parse.quote_plus(zone.name).replace('%', '=')
         resp = None
         try:
-            resp = self._get(f'zones/{zone.name}')
+            resp = self._get(f'zones/{encoded_name}')
             self.log.debug('populate:   loaded')
         except HTTPError as e:
             error = self._get_error(e)
@@ -674,6 +675,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _apply(self, plan):
         desired = plan.desired
         changes = plan.changes
+        encoded_name = urllib.parse.quote_plus(desired.name).replace('%', '=')
         self.log.debug(
             '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
         )
@@ -691,7 +693,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.log.debug('_apply:   sending change request')
 
         try:
-            self._patch(f'zones/{desired.name}', data={'rrsets': mods})
+            self._patch(f'zones/{encoded_name}', data={'rrsets': mods})
             self.log.debug('_apply:   patched')
         except HTTPError as e:
             error = self._get_error(e)
@@ -736,7 +738,7 @@ class PowerDnsBaseProvider(BaseProvider):
             self.log.debug('_apply:   created')
 
         if self.notify:
-            self._request_notify(desired.name)
+            self._request_notify(encoded_name)
 
         self.log.debug('_apply:   complete')
 
