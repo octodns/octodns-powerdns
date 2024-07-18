@@ -19,6 +19,7 @@ from octodns.zone import Zone
 from octodns_powerdns import (
     PowerDnsBaseProvider,
     PowerDnsProvider,
+    _encode_zone_name,
     _escape_unescaped_semicolons,
 )
 from octodns_powerdns.record import PowerDnsLuaRecord, _PowerDnsLuaValue
@@ -792,3 +793,11 @@ class TestPowerDnsLuaRecord(TestCase):
         # list w/a bad value
         got = _PowerDnsLuaValue.validate([val, {}], PowerDnsLuaRecord._type)
         self.assertEqual(['missing type', 'missing script'], got)
+
+    def test_encode_zone_name(self):
+        for expected, value in (
+            ('unit.tests.', 'unit.tests.'),
+            ('another_one.unit.tests.', 'another_one.unit.tests.'),
+            ('128=2F26.2.0.192.in-addr.arpa.', '128/26.2.0.192.in-addr.arpa.'),
+        ):
+            self.assertEqual(expected, _encode_zone_name(value))

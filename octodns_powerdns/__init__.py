@@ -4,6 +4,7 @@
 
 import logging
 from operator import itemgetter
+from urllib.parse import quote_plus
 
 from requests import HTTPError, Session
 
@@ -25,6 +26,15 @@ from .record import PowerDnsLuaRecord
 
 # TODO: remove __VERSION__ with the next major version release
 __version__ = __VERSION__ = '0.0.6'
+
+
+def _encode_zone_name(name):
+    # Powerdns uses a special encoding for URLs. Instead of "%2F" for a slash,
+    # the slash must be encoded with "=2F". (This must be done in version 4.7.3
+    # from Debian, from version >= 4.8 Powerdns accepts “%2F” and “=2F” as path
+    # argument. The output of "/api/v1/servers/localhost/zones" still shows the
+    # zone URL with "=2F")
+    return quote_plus(name).replace('%', '=')
 
 
 def _escape_unescaped_semicolons(value):
@@ -453,10 +463,10 @@ class PowerDnsBaseProvider(BaseProvider):
             target,
             lenient,
         )
-
+        encoded_name = _encode_zone_name(zone.name)
         resp = None
         try:
-            resp = self._get(f'zones/{zone.name}')
+            resp = self._get(f'zones/{encoded_name}')
             self.log.debug('populate:   loaded')
         except HTTPError as e:
             error = self._get_error(e)
@@ -674,6 +684,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _apply(self, plan):
         desired = plan.desired
         changes = plan.changes
+        encoded_name = _encode_zone_name(desired.name)
         self.log.debug(
             '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
         )
@@ -691,7 +702,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.log.debug('_apply:   sending change request')
 
         try:
-            self._patch(f'zones/{desired.name}', data={'rrsets': mods})
+            self._patch(f'zones/{encoded_name}', data={'rrsets': mods})
             self.log.debug('_apply:   patched')
         except HTTPError as e:
             error = self._get_error(e)
@@ -736,7 +747,7 @@ class PowerDnsBaseProvider(BaseProvider):
             self.log.debug('_apply:   created')
 
         if self.notify:
-            self._request_notify(desired.name)
+            self._request_notify(encoded_name)
 
         self.log.debug('_apply:   complete')
 
