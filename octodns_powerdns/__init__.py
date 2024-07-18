@@ -3,8 +3,8 @@
 #
 
 import logging
-import urllib.parse
 from operator import itemgetter
+from urllib.parse import quote_plus
 
 from requests import HTTPError, Session
 
@@ -26,6 +26,15 @@ from .record import PowerDnsLuaRecord
 
 # TODO: remove __VERSION__ with the next major version release
 __version__ = __VERSION__ = '0.0.6'
+
+
+def _encode_zone_name(name):
+    # Powerdns uses a special encoding for URLs. Instead of "%2F" for a slash,
+    # the slash must be encoded with "=2F". (This must be done in version 4.7.3
+    # from Debian, from version >= 4.8 Powerdns accepts “%2F” and “=2F” as path
+    # argument. The output of "/api/v1/servers/localhost/zones" still shows the
+    # zone URL with "=2F")
+    return quote_plus(name).replace('%', '=')
 
 
 def _escape_unescaped_semicolons(value):
@@ -454,7 +463,7 @@ class PowerDnsBaseProvider(BaseProvider):
             target,
             lenient,
         )
-        encoded_name = urllib.parse.quote_plus(zone.name).replace('%', '=')
+        encoded_name = _encode_zone_name(zone.name)
         resp = None
         try:
             resp = self._get(f'zones/{encoded_name}')
@@ -675,7 +684,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _apply(self, plan):
         desired = plan.desired
         changes = plan.changes
-        encoded_name = urllib.parse.quote_plus(desired.name).replace('%', '=')
+        encoded_name = _encode_zone_name(desired.name)
         self.log.debug(
             '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
         )
