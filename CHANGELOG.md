@@ -1,4 +1,4 @@
-## v0.0.? - 2024-??-?? - ???
+## v0.0.7 - 2024-08-28 - Less picky about names
 
 * Support for fully managing zones with special characters in their names, e.g.
   128/26.2.0.192.in-addr.arpa. added.
