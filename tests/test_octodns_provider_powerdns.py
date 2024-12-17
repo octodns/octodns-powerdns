@@ -295,7 +295,7 @@ class TestPowerDnsProvider(TestCase):
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
-        self.assertEqual(25, expected_n)
+        self.assertEqual(24, expected_n)
 
         # No diffs == no changes
         with requests_mock() as mock:
@@ -303,7 +303,7 @@ class TestPowerDnsProvider(TestCase):
 
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEqual(25, len(zone.records))
+            self.assertEqual(24, len(zone.records))
             changes = expected.changes(zone, provider)
             self.assertEqual(0, len(changes))
 
@@ -400,7 +400,7 @@ class TestPowerDnsProvider(TestCase):
             'test', join(dirname(__file__), 'config'), supports_root_ns=False
         )
         source.populate(expected)
-        self.assertEqual(29, len(expected.records))
+        self.assertEqual(28, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:
@@ -417,7 +417,7 @@ class TestPowerDnsProvider(TestCase):
             missing = Zone(expected.name, [])
             # Find and delete the SPF record
             for record in expected.records:
-                if record._type != 'SPF':
+                if record._type != 'SVCB':
                     missing.add_record(record)
 
             def assert_delete_callback(request, context):
@@ -427,14 +427,18 @@ class TestPowerDnsProvider(TestCase):
                             {
                                 'records': [
                                     {
-                                        'content': '"v=spf1 ip4:192.168.0.1/16-all"',
+                                        'content': '1 www.unit.tests.',
                                         'disabled': False,
-                                    }
+                                    },
+                                    {
+                                        'content': '2 backups.unit.tests.',
+                                        'disabled': False,
+                                    },
                                 ],
                                 'changetype': 'DELETE',
-                                'type': 'SPF',
-                                'name': 'spf.unit.tests.',
-                                'ttl': 600,
+                                'type': 'SVCB',
+                                'name': 'svcb.unit.tests.',
+                                'ttl': 3600,
                             }
                         ]
                     },
@@ -478,7 +482,7 @@ class TestPowerDnsProvider(TestCase):
             missing = Zone(expected.name, [])
             # Find and delete the SPF record
             for record in expected.records:
-                if record._type != 'SPF':
+                if record._type != 'SVCB':
                     missing.add_record(record)
 
             plan = provider.plan(missing)
@@ -610,21 +614,7 @@ class TestPowerDnsProvider(TestCase):
             'type': 'DS',
         }
 
-        # old
-        provider.OLD_DS_FIELDS = True
-        value = provider._data_for_DS(rrset)['values'][0]
-        self.assertEqual(
-            {
-                'algorithm': 'three',
-                'flags': 'one',
-                'protocol': 'two',
-                'public_key': 'four',
-            },
-            value,
-        )
-
         # new
-        provider.OLD_DS_FIELDS = False
         value = provider._data_for_DS(rrset)['values'][0]
         self.assertEqual(
             {
@@ -645,14 +635,6 @@ class TestPowerDnsProvider(TestCase):
             def __init__(self, value):
                 self.values = [value]
 
-        class OldFields:
-            flags = 'flags'
-            protocol = 'protocol'
-            algorithm = 'algorithm'
-            public_key = 'public_key'
-
-        old_fields = OldFields()
-
         class NewFields:
             key_tag = 'key_tag'
             algorithm = 'algorithm'
@@ -661,21 +643,7 @@ class TestPowerDnsProvider(TestCase):
 
         new_fields = NewFields()
 
-        # old
-        provider.OLD_DS_FIELDS = True
-        data = provider._records_for_DS(DummyRecord(old_fields))[0]
-        self.assertEqual(
-            [
-                {
-                    'content': 'flags protocol algorithm public_key',
-                    'disabled': False,
-                }
-            ],
-            data,
-        )
-
         # new
-        provider.OLD_DS_FIELDS = False
         data = provider._records_for_DS(DummyRecord(new_fields))[0]
         self.assertEqual(
             [

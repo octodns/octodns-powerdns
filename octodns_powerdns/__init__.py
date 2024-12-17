@@ -12,7 +12,6 @@ from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.record import Record
-from octodns.record.ds import DsValue
 
 try:  # pragma: no cover
     from octodns.record.https import HttpsValue
@@ -65,7 +64,6 @@ class PowerDnsBaseProvider(BaseProvider):
             'NAPTR',
             'NS',
             'PTR',
-            'SPF',
             'SSHFP',
             'SRV',
             'TLSA',
@@ -88,10 +86,6 @@ class PowerDnsBaseProvider(BaseProvider):
         'slave',
     }
     POWERDNS_LEGACY_MODES_OF_OPERATION = {'native', 'master', 'slave'}
-
-    # TODO: once we require octoDNS 2.0 this backwards compatibility code can go
-    # away
-    OLD_DS_FIELDS = hasattr(DsValue, 'flags')
 
     def __init__(
         self,
@@ -213,20 +207,12 @@ class PowerDnsBaseProvider(BaseProvider):
             (key_tag, algorithm, digest_type, digest) = record['content'].split(
                 ' ', 3
             )
-            if self.OLD_DS_FIELDS:
-                value = {
-                    'flags': key_tag,
-                    'protocol': algorithm,
-                    'algorithm': digest_type,
-                    'public_key': digest,
-                }
-            else:
-                value = {
-                    'key_tag': key_tag,
-                    'algorithm': algorithm,
-                    'digest_type': digest_type,
-                    'digest': digest,
-                }
+            value = {
+                'key_tag': key_tag,
+                'algorithm': algorithm,
+                'digest_type': digest_type,
+                'digest': digest,
+            }
             values.append(value)
 
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
@@ -258,7 +244,6 @@ class PowerDnsBaseProvider(BaseProvider):
             'ttl': rrset['ttl'],
         }
 
-    _data_for_SPF = _data_for_quoted
     _data_for_TXT = _data_for_quoted
 
     def _data_for_LOC(self, rrset):
@@ -544,12 +529,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _records_for_DS(self, record):
         data = []
         for v in record.values:
-            if self.OLD_DS_FIELDS:
-                content = f'{v.flags} {v.protocol} {v.algorithm} {v.public_key}'
-            else:
-                content = (
-                    f'{v.key_tag} {v.algorithm} {v.digest_type} {v.digest}'
-                )
+            content = f'{v.key_tag} {v.algorithm} {v.digest_type} {v.digest}'
             data.append({'content': content, 'disabled': False})
         return data, record._type
 
@@ -570,7 +550,6 @@ class PowerDnsBaseProvider(BaseProvider):
             {'content': f'"{v}"', 'disabled': False} for v in record.values
         ], record._type
 
-    _records_for_SPF = _records_for_quoted
     _records_for_TXT = _records_for_quoted
 
     def _records_for_LOC(self, record):
