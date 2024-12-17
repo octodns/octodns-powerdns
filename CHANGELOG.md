@@ -6,7 +6,7 @@
   upgrading.
 * DS properties "algorithm", "flags", "public_key", and "protocol" support
   removed
-* Requires octoDNS >= 2.0.0
+* Requires octoDNS >= 1.5.0
 
 ## v0.0.7 - 2024-08-28 - Less picky about names
 
