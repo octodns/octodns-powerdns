@@ -104,6 +104,8 @@ class PowerDnsBaseProvider(BaseProvider):
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
+        master_tsig_key_ids=[],
+        slave_tsig_key_ids=[],
         notify=False,
         *args,
         **kwargs,
@@ -149,6 +151,11 @@ class PowerDnsBaseProvider(BaseProvider):
         self._mode_of_operation = None
         # store what we were passed so that we can check it when the time comes
         self._mode_of_operation_arg = mode_of_operation
+
+        # set master tsig key ids
+        self.master_tsig_key_ids = master_tsig_key_ids
+        # set slave tsig key ids
+        self.slave_tsig_key_ids = slave_tsig_key_ids
 
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
@@ -451,6 +458,32 @@ class PowerDnsBaseProvider(BaseProvider):
         # >=4.2.x returns 404 when not found
         return self.powerdns_version >= [4, 2]
 
+    @property
+    def master_tsig_key_ids(self):
+        return self._master_tsig_key_ids
+
+    @master_tsig_key_ids.setter
+    def master_tsig_key_ids(self, value):
+        if type(value) is list and all([isinstance(v,str) for v in value]):
+                self._master_tsig_key_ids = value
+        else:
+            raise ValueError(
+                f'invalid master_tsig_key_ids, "{value}" - should be a list of strings'
+            )
+
+    @property
+    def slave_tsig_key_ids(self):
+        return self._slave_tsig_key_ids
+
+    @slave_tsig_key_ids.setter
+    def slave_tsig_key_ids(self, value):
+        if type(value) is list and all([isinstance(v,str) for v in value]):
+            self._slave_tsig_key_ids = value
+        else:
+            raise ValueError(
+                f'invalid slave_tsig_key_ids, "{value}" - should be a list of strings'
+            )
+
     def list_zones(self):
         self.log.debug('list_zones:')
         resp = self._get('zones')
@@ -734,6 +767,8 @@ class PowerDnsBaseProvider(BaseProvider):
                 'rrsets': mods,
                 'soa_edit_api': self.soa_edit_api,
                 'serial': 0,
+                'master_tsig_key_ids': self.master_tsig_key_ids,
+                'slave_tsig_key_ids': self.slave_tsig_key_ids,
             }
             try:
                 self._post('zones', data)

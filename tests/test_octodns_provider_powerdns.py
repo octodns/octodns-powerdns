@@ -228,6 +228,18 @@ class TestPowerDnsProvider(TestCase):
                 )
             self.assertTrue('invalid mode_of_operation' in str(ctx.exception))
 
+            with self.assertRaises(ValueError) as ctx:
+                provider = PowerDnsProvider(
+                    'test', 'non.existent', 'api-key', master_tsig_key_ids=True
+                )
+            self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
+
+            with self.assertRaises(ValueError) as ctx:
+                provider = PowerDnsProvider(
+                    'test', 'non.existent', 'api-key', master_tsig_key_ids=[1,"",True]
+                )
+            self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
+
     def test_provider(self):
         # Test version detection
         with requests_mock() as mock:
