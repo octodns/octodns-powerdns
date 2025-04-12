@@ -464,8 +464,8 @@ class PowerDnsBaseProvider(BaseProvider):
 
     @master_tsig_key_ids.setter
     def master_tsig_key_ids(self, value):
-        if type(value) is list and all([isinstance(v,str) for v in value]):
-                self._master_tsig_key_ids = value
+        if type(value) is list and all([isinstance(v, str) for v in value]):
+            self._master_tsig_key_ids = value
         else:
             raise ValueError(
                 f'invalid master_tsig_key_ids, "{value}" - should be a list of strings'
@@ -477,7 +477,7 @@ class PowerDnsBaseProvider(BaseProvider):
 
     @slave_tsig_key_ids.setter
     def slave_tsig_key_ids(self, value):
-        if type(value) is list and all([isinstance(v,str) for v in value]):
+        if type(value) is list and all([isinstance(v, str) for v in value]):
             self._slave_tsig_key_ids = value
         else:
             raise ValueError(

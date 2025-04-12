@@ -236,9 +236,27 @@ class TestPowerDnsProvider(TestCase):
 
             with self.assertRaises(ValueError) as ctx:
                 provider = PowerDnsProvider(
-                    'test', 'non.existent', 'api-key', master_tsig_key_ids=[1,"",True]
+                    'test', 'non.existent', 'api-key', slave_tsig_key_ids=False
+                )
+            self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
+
+            with self.assertRaises(ValueError) as ctx:
+                provider = PowerDnsProvider(
+                    'test',
+                    'non.existent',
+                    'api-key',
+                    master_tsig_key_ids=[1, "", True],
                 )
             self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
+
+            with self.assertRaises(ValueError) as ctx:
+                provider = PowerDnsProvider(
+                    'test',
+                    'non.existent',
+                    'api-key',
+                    slave_tsig_key_ids=[2, "", False],
+                )
+            self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
 
     def test_provider(self):
         # Test version detection
@@ -698,6 +716,23 @@ class TestPowerDnsProvider(TestCase):
             ],
             data,
         )
+
+    def test_tsig(self):
+        provider = PowerDnsProvider(
+            'test',
+            'non.existent',
+            'api-key',
+            master_tsig_key_ids=["unit_tsig_master"],
+        )
+        self.assertEqual(provider.master_tsig_key_ids, ["unit_tsig_master"])
+
+        provider = PowerDnsProvider(
+            'test',
+            'non.existent',
+            'api-key',
+            slave_tsig_key_ids=["unit_tsig_slave"],
+        )
+        self.assertEqual(provider.slave_tsig_key_ids, ["unit_tsig_slave"])
 
 
 class TestPowerDnsLuaRecord(TestCase):
