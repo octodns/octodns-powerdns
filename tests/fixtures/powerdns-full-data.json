@@ -165,18 +165,6 @@
         },
         {
             "comments": [],
-            "name": "spf.unit.tests.",
-            "records": [
-                {
-                    "content": "\"v=spf1 ip4:192.168.0.1/16-all\"",
-                    "disabled": false
-                }
-            ],
-            "ttl": 600,
-            "type": "SPF"
-        },
-        {
-            "comments": [],
             "name": "cname.unit.tests.",
             "records": [
                 {
