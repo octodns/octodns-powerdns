@@ -306,6 +306,10 @@ class TestPowerDnsProvider(TestCase):
             self.assertEqual(24, len(zone.records))
             changes = expected.changes(zone, provider)
             self.assertEqual(0, len(changes))
+            self.assertEqual(
+                "unit.tests.",
+                provider.get_caches("unit.tests.").json().get("name"),
+            )
 
         # Used in a minute
         def assert_rrsets_callback(request, context):

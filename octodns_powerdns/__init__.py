@@ -151,6 +151,8 @@ class PowerDnsBaseProvider(BaseProvider):
         # set slave tsig key ids
         self.slave_tsig_key_ids = slave_tsig_key_ids
 
+        self.init_caches()
+
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
 
@@ -481,6 +483,18 @@ class PowerDnsBaseProvider(BaseProvider):
         resp = self._get('zones')
         return sorted([z['name'] for z in resp.json()])
 
+    def init_caches(self):
+        self._zone_caches = {}
+
+    def update_caches(self, zone_name, data):
+        self._zone_caches[zone_name] = data
+
+    def get_caches(self, zone_name):
+        return self._zone_caches[zone_name]
+
+    def cleanup_caches(self, zone_name):
+        del self._zone_caches[zone_name]
+
     def populate(self, zone, target=False, lenient=False):
         self.log.debug(
             'populate: name=%s, target=%s, lenient=%s',
@@ -491,6 +505,9 @@ class PowerDnsBaseProvider(BaseProvider):
         encoded_name = _encode_zone_name(zone.name)
 
         resp = self._get_zone(encoded_name)
+
+        # add zone to temporary cache
+        self.update_caches(zone.name, resp)
 
         before = len(zone.records)
         exists = False
@@ -708,9 +725,8 @@ class PowerDnsBaseProvider(BaseProvider):
     def _plan_meta(self, existing, desired, changes):
         results = {}
         zone_name = desired.name
-        encoded_name = _encode_zone_name(zone_name)
 
-        resp = self._get_zone(encoded_name)
+        resp = self.get_caches(zone_name)
 
         if resp:
             current_master_tsig_key_ids = resp.json().get(
@@ -774,17 +790,26 @@ class PowerDnsBaseProvider(BaseProvider):
 
             if desired_master_tsig_key_ids is not None:
                 _data["master_tsig_key_ids"] = desired_master_tsig_key_ids
+                self.log.info(
+                    '_apply: make change to master_tsig_key_ids meta on %s',
+                    desired.name,
+                )
 
             desired_slave_tsig_key_ids = plan.meta.get(
                 'slave_tsig_key_ids', {}
             ).get('desired', None)
-            print("slave", desired_slave_tsig_key_ids, plan.meta)
 
             if desired_slave_tsig_key_ids is not None:
                 _data["slave_tsig_key_ids"] = desired_slave_tsig_key_ids
+                self.log.info(
+                    '_apply: make change to slave_tsig_key_ids meta on %s',
+                    desired.name,
+                )
 
             if len(_data.keys()) > 0:
                 self._put(f'zones/{encoded_name}', data=_data)
+
+            self.cleanup_caches(desired.name)
 
         except HTTPError as e:
             error = self._get_error(e)
