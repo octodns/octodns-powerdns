@@ -228,36 +228,6 @@ class TestPowerDnsProvider(TestCase):
                 )
             self.assertTrue('invalid mode_of_operation' in str(ctx.exception))
 
-            with self.assertRaises(ValueError) as ctx:
-                provider = PowerDnsProvider(
-                    'test', 'non.existent', 'api-key', master_tsig_key_ids=True
-                )
-            self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
-
-            with self.assertRaises(ValueError) as ctx:
-                provider = PowerDnsProvider(
-                    'test', 'non.existent', 'api-key', slave_tsig_key_ids=False
-                )
-            self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
-
-            with self.assertRaises(ValueError) as ctx:
-                provider = PowerDnsProvider(
-                    'test',
-                    'non.existent',
-                    'api-key',
-                    master_tsig_key_ids=[1, "", True],
-                )
-            self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
-
-            with self.assertRaises(ValueError) as ctx:
-                provider = PowerDnsProvider(
-                    'test',
-                    'non.existent',
-                    'api-key',
-                    slave_tsig_key_ids=[2, "", False],
-                )
-            self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
-
     def test_provider(self):
         # Test version detection
         with requests_mock() as mock:
@@ -348,6 +318,7 @@ class TestPowerDnsProvider(TestCase):
             mock.get(ANY, status_code=200, text=EMPTY_TEXT)
             # post 201, is response to the create with data
             mock.patch(ANY, status_code=201, text=assert_rrsets_callback)
+            mock.put(ANY, status_code=204, text='')
 
             plan = provider.plan(expected)
             self.assertEqual(expected_n, len(plan.changes))
@@ -419,6 +390,7 @@ class TestPowerDnsProvider(TestCase):
             mock.patch(ANY, status_code=422, text=dumps(not_found))
             # post 422's, something wrong with create
             mock.post(ANY, status_code=422, text='Hello Word!')
+            mock.put(ANY, status_code=204, text='')
 
             with self.assertRaises(HTTPError):
                 plan = provider.plan(expected)
@@ -477,6 +449,7 @@ class TestPowerDnsProvider(TestCase):
                 return ''
 
             mock.patch(ANY, status_code=201, text=assert_delete_callback)
+            mock.put(ANY, status_code=204, text='')
 
             plan = provider.plan(missing)
             self.assertEqual(1, len(plan.changes))
@@ -501,6 +474,12 @@ class TestPowerDnsProvider(TestCase):
                 status_code=200,
                 json={'version': '4.1.0'},
             )
+            mock.put(
+                'http://non.existent:8081/api/v1/servers/localhost/zones/unit.tests.',
+                status_code=204,
+                text='',
+            )
+
             provider = PowerDnsProvider(
                 'test',
                 'non.existent',
@@ -690,17 +669,74 @@ class TestPowerDnsProvider(TestCase):
             'test',
             'non.existent',
             'api-key',
-            master_tsig_key_ids=["unit_tsig_master"],
+            master_tsig_key_ids=["unit_tsig_master."],
         )
-        self.assertEqual(provider.master_tsig_key_ids, ["unit_tsig_master"])
+        self.assertEqual(provider.master_tsig_key_ids, ["unit_tsig_master."])
 
-        provider = PowerDnsProvider(
-            'test',
-            'non.existent',
-            'api-key',
-            slave_tsig_key_ids=["unit_tsig_slave"],
-        )
-        self.assertEqual(provider.slave_tsig_key_ids, ["unit_tsig_slave"])
+        with self.assertRaises(ValueError) as ctx:
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', master_tsig_key_ids=True
+            )
+        self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', slave_tsig_key_ids=False
+            )
+        self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                master_tsig_key_ids=[1, "", True],
+            )
+        self.assertTrue('invalid master_tsig_key_ids' in str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                slave_tsig_key_ids=[2, "", False],
+            )
+        self.assertTrue('invalid slave_tsig_key_ids' in str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                slave_tsig_key_ids=["unit_tsig_slave"],
+            )
+        self.assertTrue('should end with a dot' in str(ctx.exception))
+
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, text=FULL_TEXT)
+
+            # test with changes
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                master_tsig_key_ids=["unit_tsig_master_2."],
+            )
+        self.assertEqual(provider.master_tsig_key_ids, ["unit_tsig_master_2."])
+
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, text=FULL_TEXT)
+
+            # test without changes
+            provider = PowerDnsProvider(
+                'test',
+                'non.existent',
+                'api-key',
+                master_tsig_key_ids=["unit_tsig_master."],
+                slave_tsig_key_ids=["unit_tsig_slave."],
+            )
+        self.assertEqual(provider.master_tsig_key_ids, ["unit_tsig_master."])
+        self.assertEqual(provider.slave_tsig_key_ids, ["unit_tsig_slave."])
 
 
 class TestPowerDnsLuaRecord(TestCase):
