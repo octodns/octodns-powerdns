@@ -1,3 +1,13 @@
+## v1.0.0 - 2025-05-04 - Long overdue 1.0
+
+### Notedworthy Changes:
+
+* `SPF` record support removed, records should be migrated to `TXT` before
+  upgrading.
+* DS properties "algorithm", "flags", "public_key", and "protocol" support
+  removed
+* Requires octoDNS >= 1.5.0
+
 ## v0.0.7 - 2024-08-28 - Less picky about names
 
 * Support for fully managing zones with special characters in their names, e.g.

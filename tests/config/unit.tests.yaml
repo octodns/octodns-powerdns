@@ -1,19 +1,6 @@
 ---
 ? ''
-: - geo:
-      AF:
-      - 2.2.3.4
-      - 2.2.3.5
-      AS-JP:
-      - 3.2.3.4
-      - 3.2.3.5
-      NA-US:
-      - 4.2.3.4
-      - 4.2.3.5
-      NA-US-CA:
-      - 5.2.3.4
-      - 5.2.3.5
-    ttl: 300
+: - ttl: 300
     type: A
     values:
     - 1.2.3.4
@@ -39,10 +26,10 @@
       value: ca.unit.tests
   - type: 'DS'
     values:
-    - algorithm: 2
-      flags: 2371
-      protocol: 13
-      public_key: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+    - algorithm: 13
+      digest: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+      digest_type: 2
+      key_tag: 2371
 _853._tcp:
   type: TLSA
   values:
@@ -180,10 +167,6 @@ ptr:
   ttl: 300
   type: PTR
   values: [foo.bar.com.]
-spf:
-  ttl: 600
-  type: SPF
-  value: v=spf1 ip4:192.168.0.1/16-all
 sub:
   - type: 'NS'
     values:
@@ -191,10 +174,10 @@ sub:
     - 7.2.3.4.
   - type: 'DS'
     values:
-    - algorithm: 2
-      flags: 12345
-      protocol: 13
-      public_key: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+    - algorithm: 13
+      digest: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+      digest_type: 2
+      key_tag: 12345
 svcb:
   type: SVCB
   values:
