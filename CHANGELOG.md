@@ -1,3 +1,7 @@
+## v1.?.? - 2025-??-?? - ???
+
+* Add support for URI record type
+
 ## v1.0.0 - 2025-05-04 - Long overdue 1.0
 
 ### Notedworthy Changes:

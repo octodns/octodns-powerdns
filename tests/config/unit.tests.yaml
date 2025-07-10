@@ -37,6 +37,16 @@ _853._tcp:
     certificate_usage: 3
     matching_type: 1
     selector: 1
+_http._tcp:
+  ttl: 601
+  type: URI
+  values:
+  - priority: 1
+    target: https://www.unit.tests./foo
+    weight: 2
+  - priority: 2
+    target: https://backups.unit.tests./
+    weight: 3
 _imap._tcp:
   ttl: 600
   type: SRV

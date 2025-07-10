@@ -363,6 +363,22 @@
             ],
             "ttl": 3600,
             "type": "SVCB"
+        },
+        {
+            "comments": [],
+            "name": "_http._tcp.unit.tests.",
+            "records": [
+                {
+                    "content": "1 2 \"https://www.unit.tests./foo\"",
+                    "disabled": false
+                },
+                {
+                    "content": "2 3 \"https://backups.unit.tests./\"",
+                    "disabled": false
+                }
+            ],
+            "ttl": 601,
+            "type": "URI"
         }
     ],
     "serial": 2017012803,
