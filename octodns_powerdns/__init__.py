@@ -98,6 +98,8 @@ class PowerDnsBaseProvider(BaseProvider):
         timeout=TIMEOUT,
         soa_edit_api='default',
         mode_of_operation='master',
+        master_tsig_key_ids=[],
+        slave_tsig_key_ids=[],
         notify=False,
         *args,
         **kwargs,
@@ -143,6 +145,13 @@ class PowerDnsBaseProvider(BaseProvider):
         self._mode_of_operation = None
         # store what we were passed so that we can check it when the time comes
         self._mode_of_operation_arg = mode_of_operation
+
+        # set master tsig key ids
+        self.master_tsig_key_ids = master_tsig_key_ids
+        # set slave tsig key ids
+        self.slave_tsig_key_ids = slave_tsig_key_ids
+
+        self.init_caches()
 
     def _request(self, method, path, data=None):
         self.log.debug('_request: method=%s, path=%s', method, path)
@@ -436,10 +445,55 @@ class PowerDnsBaseProvider(BaseProvider):
         # >=4.2.x returns 404 when not found
         return self.powerdns_version >= [4, 2]
 
+    @property
+    def master_tsig_key_ids(self):
+        return self._master_tsig_key_ids
+
+    @master_tsig_key_ids.setter
+    def master_tsig_key_ids(self, value):
+        if type(value) is list and all([isinstance(v, str) for v in value]):
+            value = [self.check_tsig_key(v) for v in value]
+            self._master_tsig_key_ids = value
+        else:
+            raise ValueError(
+                f'invalid master_tsig_key_ids, "{value}" - should be a list of strings'
+            )
+
+    @property
+    def slave_tsig_key_ids(self):
+        return self._slave_tsig_key_ids
+
+    @slave_tsig_key_ids.setter
+    def slave_tsig_key_ids(self, value):
+        if type(value) is list and all([isinstance(v, str) for v in value]):
+            value = [self.check_tsig_key(v) for v in value]
+            self._slave_tsig_key_ids = value
+        else:
+            raise ValueError(
+                f'invalid slave_tsig_key_ids, "{value}" - should be a list of strings'
+            )
+
+    def check_tsig_key(self, value):
+        if not value.endswith("."):
+            raise ValueError(f'invalid value "{value}" - should end with a dot')
+        return value
+
     def list_zones(self):
         self.log.debug('list_zones:')
         resp = self._get('zones')
         return sorted([z['name'] for z in resp.json()])
+
+    def init_caches(self):
+        self._zone_caches = {}
+
+    def update_caches(self, zone_name, data):
+        self._zone_caches[zone_name] = data
+
+    def get_caches(self, zone_name):
+        return self._zone_caches[zone_name]
+
+    def cleanup_caches(self, zone_name):
+        del self._zone_caches[zone_name]
 
     def populate(self, zone, target=False, lenient=False):
         self.log.debug(
@@ -449,32 +503,11 @@ class PowerDnsBaseProvider(BaseProvider):
             lenient,
         )
         encoded_name = _encode_zone_name(zone.name)
-        resp = None
-        try:
-            resp = self._get(f'zones/{encoded_name}')
-            self.log.debug('populate:   loaded')
-        except HTTPError as e:
-            error = self._get_error(e)
-            if e.response.status_code == 401:
-                # Nicer error message for auth problems
-                raise Exception(f'PowerDNS unauthorized host={self.host}')
-            elif e.response.status_code == 404 and self.check_status_not_found:
-                # 404 means powerdns doesn't know anything about the requested
-                # domain. We'll just ignore it here and leave the zone
-                # untouched.
-                pass
-            elif (
-                e.response.status_code == 422
-                and error.startswith('Could not find domain ')
-                and not self.check_status_not_found
-            ):
-                # 422 means powerdns doesn't know anything about the requested
-                # domain. We'll just ignore it here and leave the zone
-                # untouched.
-                pass
-            else:
-                # just re-throw
-                raise
+
+        resp = self._get_zone(encoded_name)
+
+        # add zone to temporary cache
+        self.update_caches(zone.name, resp)
 
         before = len(zone.records)
         exists = False
@@ -654,11 +687,75 @@ class PowerDnsBaseProvider(BaseProvider):
             'records': records,
         }
 
+    def _get_zone(self, encoded_name):
+        resp = None
+        try:
+            resp = self._get(f'zones/{encoded_name}')
+            self.log.debug('populate:   loaded')
+        except HTTPError as e:
+            error = self._get_error(e)
+            if e.response.status_code == 401:
+                # Nicer error message for auth problems
+                raise Exception(f'PowerDNS unauthorized host={self.host}')
+            elif e.response.status_code == 404 and self.check_status_not_found:
+                # 404 means powerdns doesn't know anything about the requested
+                # domain. We'll just ignore it here and leave the zone
+                # untouched.
+                pass
+            elif (
+                e.response.status_code == 422
+                and error.startswith('Could not find domain ')
+                and not self.check_status_not_found
+            ):
+                # 422 means powerdns doesn't know anything about the requested
+                # domain. We'll just ignore it here and leave the zone
+                # untouched.
+                pass
+            else:
+                # just re-throw
+                raise
+        return resp
+
     def _get_error(self, http_error):
         try:
             return http_error.response.json()['error']
         except Exception:
             return ''
+
+    def _plan_meta(self, existing, desired, changes):
+        results = {}
+        zone_name = desired.name
+
+        resp = self.get_caches(zone_name)
+
+        if resp:
+            current_master_tsig_key_ids = resp.json().get(
+                "master_tsig_key_ids", []
+            )
+            desired_master_tsig_key_ids = self.master_tsig_key_ids
+
+            if list(set(current_master_tsig_key_ids)) != list(
+                set(desired_master_tsig_key_ids)
+            ):
+                results['master_tsig_key_ids'] = {
+                    'current': current_master_tsig_key_ids,
+                    'desired': desired_master_tsig_key_ids,
+                }
+
+            current_slave_tsig_key_ids = resp.json().get(
+                "slave_tsig_key_ids", []
+            )
+            desired_slave_tsig_key_ids = self.slave_tsig_key_ids
+
+            if list(set(current_slave_tsig_key_ids)) != list(
+                set(desired_slave_tsig_key_ids)
+            ):
+                results['slave_tsig_key_ids'] = {
+                    'current': current_slave_tsig_key_ids,
+                    'desired': desired_slave_tsig_key_ids,
+                }
+
+        return results
 
     def _apply(self, plan):
         desired = plan.desired
@@ -683,6 +780,37 @@ class PowerDnsBaseProvider(BaseProvider):
         try:
             self._patch(f'zones/{encoded_name}', data={'rrsets': mods})
             self.log.debug('_apply:   patched')
+
+            # update meta
+            _data = {}
+
+            desired_master_tsig_key_ids = plan.meta.get(
+                'master_tsig_key_ids', {}
+            ).get('desired', None)
+
+            if desired_master_tsig_key_ids is not None:
+                _data["master_tsig_key_ids"] = desired_master_tsig_key_ids
+                self.log.info(
+                    '_apply: make change to master_tsig_key_ids meta on %s',
+                    desired.name,
+                )
+
+            desired_slave_tsig_key_ids = plan.meta.get(
+                'slave_tsig_key_ids', {}
+            ).get('desired', None)
+
+            if desired_slave_tsig_key_ids is not None:
+                _data["slave_tsig_key_ids"] = desired_slave_tsig_key_ids
+                self.log.info(
+                    '_apply: make change to slave_tsig_key_ids meta on %s',
+                    desired.name,
+                )
+
+            if len(_data.keys()) > 0:
+                self._put(f'zones/{encoded_name}', data=_data)
+
+            self.cleanup_caches(desired.name)
+
         except HTTPError as e:
             error = self._get_error(e)
             if not (
@@ -713,6 +841,8 @@ class PowerDnsBaseProvider(BaseProvider):
                 'rrsets': mods,
                 'soa_edit_api': self.soa_edit_api,
                 'serial': 0,
+                'master_tsig_key_ids': self.master_tsig_key_ids,
+                'slave_tsig_key_ids': self.slave_tsig_key_ids,
             }
             try:
                 self._post('zones', data)
