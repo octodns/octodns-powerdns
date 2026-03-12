@@ -6,7 +6,7 @@ volumes:
 
 services:
   db:
-    image: mariadb:10.1
+    image: mariadb:10
     ports:
       - "3306:3306"
     environment:

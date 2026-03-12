@@ -215,7 +215,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_DS(self, rrset):
         values = []
         for record in rrset['records']:
-            (key_tag, algorithm, digest_type, digest) = record['content'].split(
+            key_tag, algorithm, digest_type, digest = record['content'].split(
                 ' ', 3
             )
             value = {
