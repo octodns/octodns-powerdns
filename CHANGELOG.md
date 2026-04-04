@@ -1,3 +1,11 @@
+## 1.1.0 - 2026-04-03
+
+Minor:
+* Add support for URI record type - [#82](https://github.com/octodns/octodns-powerdns/pull/82)
+
+Patch:
+* Use new [changelet](https://github.com/octodns/changelet) tooling - [#83](https://github.com/octodns/octodns-powerdns/pull/83)
+
 ## v1.0.0 - 2025-05-04 - Long overdue 1.0
 
 ### Notedworthy Changes:
