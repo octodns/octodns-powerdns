@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover
 from .record import PowerDnsLuaRecord
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '1.0.0'
+__version__ = __VERSION__ = '1.1.0'
 
 
 def _encode_zone_name(name):
@@ -224,7 +224,7 @@ class PowerDnsBaseProvider(BaseProvider):
     def _data_for_DS(self, rrset):
         values = []
         for record in rrset['records']:
-            (key_tag, algorithm, digest_type, digest) = record['content'].split(
+            key_tag, algorithm, digest_type, digest = record['content'].split(
                 ' ', 3
             )
             value = {
