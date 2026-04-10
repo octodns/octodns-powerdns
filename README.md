@@ -50,6 +50,8 @@ providers:
       # ssl_verify: true
       # Send DNS NOTIFY to secondary servers after change (optional, default false)
       # notify: false
+      # The PowerDNS server id used in API URLs (optional, default localhost)
+      # server_id: localhost
 ```
 
 ### Support Information

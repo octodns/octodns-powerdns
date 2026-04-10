@@ -228,6 +228,24 @@ class TestPowerDnsProvider(TestCase):
                 )
             self.assertTrue('invalid mode_of_operation' in str(ctx.exception))
 
+    def test_server_id(self):
+        # Default server_id is "localhost"
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        self.assertEqual(provider.server_id, 'localhost')
+
+        # Custom server_id is used in the API URL
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/custom-id',
+                status_code=200,
+                json={'version': "4.5.0"},
+            )
+            provider = PowerDnsProvider(
+                'test', 'non.existent', 'api-key', server_id='custom-id'
+            )
+            self.assertEqual(provider.server_id, 'custom-id')
+            self.assertEqual(provider.powerdns_version, [4, 5, 0])
+
     def test_provider(self):
         # Test version detection
         with requests_mock() as mock:
