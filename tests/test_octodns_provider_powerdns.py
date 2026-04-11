@@ -495,6 +495,7 @@ class TestPowerDnsProvider(TestCase):
                 'api-key',
                 strict_supports=False,
                 notify=True,
+                enable_dynamic=False,
             )
 
             missing = Zone(expected.name, [])
@@ -859,6 +860,88 @@ class TestPowerDnsProvider(TestCase):
         types = {(r['changetype'], r['type']) for r in rrsets}
         self.assertIn(('DELETE', 'A'), types)
         self.assertIn(('REPLACE', 'LUA'), types)
+
+    def _config_payload(self, **overrides):
+        config = {
+            'enable-lua-records': 'shared',
+            'launch': 'gmysql,geoip',
+            'geoip-database-files': 'mmdb:/etc/powerdns/test.mmdb',
+        }
+        config.update(overrides)
+        return [{'name': k, 'value': v} for k, v in config.items()]
+
+    def test_supports_dynamic_probe_success(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(
+                'http://non.existent:8081/api/v1/servers/localhost/config',
+                status_code=200,
+                json=self._config_payload(),
+            )
+            self.assertTrue(provider.SUPPORTS_DYNAMIC)
+        # Second access is cached — no new request needed.
+        self.assertTrue(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_probe_lua_yes(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(
+                ANY,
+                status_code=200,
+                json=self._config_payload(**{'enable-lua-records': 'yes'}),
+            )
+            self.assertTrue(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_probe_lua_disabled(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(
+                ANY,
+                status_code=200,
+                json=self._config_payload(**{'enable-lua-records': 'no'}),
+            )
+            self.assertFalse(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_probe_no_geoip(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(
+                ANY,
+                status_code=200,
+                json=self._config_payload(
+                    launch='gmysql', **{'geoip-database-files': ''}
+                ),
+            )
+            self.assertFalse(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_probe_geoip_via_database_files(self):
+        # launch= doesn't list geoip explicitly, but geoip-database-files is
+        # set — still counts as geoip-capable.
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(
+                ANY, status_code=200, json=self._config_payload(launch='gmysql')
+            )
+            self.assertTrue(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_probe_http_error(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=401, text='Unauthorized')
+            self.assertFalse(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_enable_dynamic_forced_true(self):
+        # enable_dynamic=True skips the probe entirely.
+        provider = PowerDnsProvider(
+            'test', 'non.existent', 'api-key', enable_dynamic=True
+        )
+        self.assertTrue(provider.SUPPORTS_DYNAMIC)
+
+    def test_supports_dynamic_enable_dynamic_forced_false(self):
+        provider = PowerDnsProvider(
+            'test', 'non.existent', 'api-key', enable_dynamic=False
+        )
+        self.assertFalse(provider.SUPPORTS_DYNAMIC)
 
 
 class TestPowerDnsLuaRecord(TestCase):

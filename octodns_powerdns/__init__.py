@@ -58,7 +58,8 @@ def _escape_unescaped_semicolons(value):
 
 class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
-    SUPPORTS_DYNAMIC = False
+    SUPPORTS_DYNAMIC_SUBNETS = False
+    SUPPORTS_POOL_VALUE_STATUS = False
     SUPPORTS_ROOT_NS = True
     SUPPORTS_MULTIVALUE_PTR = True
     SUPPORTS = set(
@@ -113,6 +114,7 @@ class PowerDnsBaseProvider(BaseProvider):
         mode_of_operation='master',
         notify=False,
         server_id='localhost',
+        enable_dynamic=None,
         *args,
         **kwargs,
     ):
@@ -134,6 +136,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.server_id = server_id
 
         self._powerdns_version = None
+        self._supports_dynamic = enable_dynamic
 
         sess = Session()
         sess.headers.update(
@@ -422,6 +425,43 @@ class PowerDnsBaseProvider(BaseProvider):
             ]
 
         return self._powerdns_version
+
+    @property
+    def SUPPORTS_DYNAMIC(self):
+        if self._supports_dynamic is None:
+            self._supports_dynamic = self._probe_dynamic_support()
+        return self._supports_dynamic
+
+    def _probe_dynamic_support(self):
+        try:
+            resp = self._get('config')
+            config = {item['name']: item['value'] for item in resp.json()}
+        except (HTTPError, TypeError, KeyError, ValueError) as e:
+            self.log.warning(
+                'SUPPORTS_DYNAMIC: probe failed (%s), dynamic records '
+                'disabled; set enable_dynamic=true to force',
+                e,
+            )
+            return False
+        lua_mode = config.get('enable-lua-records', '')
+        if lua_mode not in ('yes', 'shared'):
+            self.log.warning(
+                'SUPPORTS_DYNAMIC: enable-lua-records=%r, dynamic records '
+                'disabled; set enable_dynamic=true to force',
+                lua_mode,
+            )
+            return False
+        launch = [p.strip() for p in config.get('launch', '').split(',')]
+        has_geoip = 'geoip' in launch or bool(
+            config.get('geoip-database-files', '')
+        )
+        if not has_geoip:
+            self.log.warning(
+                'SUPPORTS_DYNAMIC: geoip backend not configured, dynamic '
+                'records disabled; set enable_dynamic=true to force'
+            )
+            return False
+        return True
 
     @property
     def soa_edit_api(self):
