@@ -673,6 +673,193 @@ class TestPowerDnsProvider(TestCase):
             data,
         )
 
+    def _dynamic_a(self, name='www', default='5.5.5.5'):
+        zone = Zone('unit.tests.', [])
+        return Record.new(
+            zone,
+            name,
+            {
+                'type': 'A',
+                'ttl': 60,
+                'values': [default],
+                'dynamic': {
+                    'pools': {
+                        'eu': {'values': [{'value': '1.1.1.1'}]},
+                        'default': {'values': [{'value': default}]},
+                    },
+                    'rules': [
+                        {'geos': ['EU'], 'pool': 'eu'},
+                        {'pool': 'default'},
+                    ],
+                },
+            },
+        )
+
+    def test_records_for_dynamic_A(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        record = self._dynamic_a()
+        records, _type = provider._records_for_A(record)
+        self.assertEqual('LUA', _type)
+        self.assertEqual(1, len(records))
+        self.assertTrue(records[0]['content'].startswith('A "'))
+        self.assertIn('octodns-dynamic:v1:', records[0]['content'])
+
+    def test_records_for_dynamic_CNAME(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        zone = Zone('unit.tests.', [])
+        record = Record.new(
+            zone,
+            'www',
+            {
+                'type': 'CNAME',
+                'ttl': 60,
+                'value': 'default.example.com.',
+                'dynamic': {
+                    'pools': {
+                        'eu': {'values': [{'value': 'eu.example.com.'}]},
+                        'default': {
+                            'values': [{'value': 'default.example.com.'}]
+                        },
+                    },
+                    'rules': [
+                        {'geos': ['EU'], 'pool': 'eu'},
+                        {'pool': 'default'},
+                    ],
+                },
+            },
+        )
+        records, _type = provider._records_for_CNAME(record)
+        self.assertEqual('LUA', _type)
+        self.assertTrue(records[0]['content'].startswith('CNAME "'))
+
+    def test_records_for_CNAME_static(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        zone = Zone('unit.tests.', [])
+        record = Record.new(
+            zone,
+            'alias',
+            {'type': 'CNAME', 'ttl': 60, 'value': 'target.example.com.'},
+        )
+        records, _type = provider._records_for_CNAME(record)
+        self.assertEqual('CNAME', _type)
+        self.assertEqual('target.example.com.', records[0]['content'])
+
+    def test_data_for_LUA_dynamic_marker(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        record = self._dynamic_a()
+        records, _ = provider._records_for_A(record)
+        rrset = {
+            'name': 'www.unit.tests.',
+            'type': 'LUA',
+            'ttl': 60,
+            'records': records,
+        }
+        data = provider._data_for_LUA(rrset)
+        self.assertEqual('A', data['type'])
+        self.assertEqual(60, data['ttl'])
+        self.assertIn('dynamic', data)
+        self.assertEqual(['5.5.5.5'], data['values'])
+
+    def test_data_for_LUA_single_no_marker_falls_back(self):
+        # Single-record LUA with a qtype we support but no octodns marker —
+        # should fall through to the PowerDnsLuaRecord path.
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        rrset = {
+            'name': 'lua.unit.tests.',
+            'type': 'LUA',
+            'ttl': 60,
+            'records': [
+                {'content': 'A ";return \'1.2.3.4\'"', 'disabled': False}
+            ],
+        }
+        data = provider._data_for_LUA(rrset)
+        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
+
+    def test_data_for_LUA_single_unsupported_qtype_falls_back(self):
+        # Single-record LUA for a qtype we don't translate dynamically —
+        # should also fall through.
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        rrset = {
+            'name': 'lua.unit.tests.',
+            'type': 'LUA',
+            'ttl': 60,
+            'records': [
+                {'content': 'TXT "return \'hello\'"', 'disabled': False}
+            ],
+        }
+        data = provider._data_for_LUA(rrset)
+        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
+
+    def test_mod_Update_same_rrset_type(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        zone = Zone('unit.tests.', [])
+        existing = Record.new(
+            zone, 'www', {'type': 'A', 'ttl': 60, 'values': ['1.1.1.1']}
+        )
+        new = Record.new(
+            zone, 'www', {'type': 'A', 'ttl': 60, 'values': ['2.2.2.2']}
+        )
+        from octodns.record.change import Update
+
+        mod = provider._mod_Update(Update(existing, new))
+        self.assertIsInstance(mod, dict)
+        self.assertEqual('A', mod['type'])
+        self.assertEqual('REPLACE', mod['changetype'])
+
+    def test_mod_Update_rrset_type_change_emits_delete(self):
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        zone = Zone('unit.tests.', [])
+        existing = Record.new(
+            zone, 'www', {'type': 'A', 'ttl': 60, 'values': ['1.1.1.1']}
+        )
+        new = self._dynamic_a()
+        from octodns.record.change import Update
+
+        mods = provider._mod_Update(Update(existing, new))
+        self.assertIsInstance(mods, list)
+        self.assertEqual(2, len(mods))
+        delete, replace = mods
+        self.assertEqual('DELETE', delete['changetype'])
+        self.assertEqual('A', delete['type'])
+        self.assertEqual('REPLACE', replace['changetype'])
+        self.assertEqual('LUA', replace['type'])
+
+    def test_apply_flattens_list_mods(self):
+        # Exercise _apply's list-flatten branch via an Update whose backing
+        # rrset type changes (static A → dynamic A → LUA rrset).
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        zone = Zone('unit.tests.', [])
+        existing = Record.new(
+            zone, 'www', {'type': 'A', 'ttl': 60, 'values': ['1.1.1.1']}
+        )
+        new = self._dynamic_a()
+        from octodns.provider.plan import Plan
+        from octodns.record.change import Update
+
+        plan = Plan(
+            existing=zone,
+            desired=zone,
+            changes=[Update(existing, new)],
+            exists=True,
+        )
+
+        captured = {}
+
+        def patch_callback(request, context):
+            captured['body'] = loads(request.body)
+            return ''
+
+        with requests_mock() as mock:
+            mock.patch(ANY, status_code=204, text=patch_callback)
+            provider._apply(plan)
+
+        rrsets = captured['body']['rrsets']
+        # Expect both a DELETE (for the old A rrset) and a REPLACE (for the
+        # new LUA rrset) in the same PATCH.
+        types = {(r['changetype'], r['type']) for r in rrsets}
+        self.assertIn(('DELETE', 'A'), types)
+        self.assertIn(('REPLACE', 'LUA'), types)
+
 
 class TestPowerDnsLuaRecord(TestCase):
     def test_basics(self):

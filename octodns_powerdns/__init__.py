@@ -29,6 +29,8 @@ except ImportError:  # pragma: no cover
     SUPPORTS_URI = False
 
 
+from .dynamic import decode as _dynamic_decode
+from .dynamic import encode as _dynamic_encode
 from .record import PowerDnsLuaRecord
 
 # TODO: remove __VERSION__ with the next major version release
@@ -363,8 +365,26 @@ class PowerDnsBaseProvider(BaseProvider):
         return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
 
     def _data_for_LUA(self, rrset):
+        records = rrset['records']
+        # A dynamic record always serializes to exactly one content entry; if
+        # the rrset has one record matching a dynamic-capable qtype, try to
+        # decode the octodns-dynamic marker.
+        if len(records) == 1:
+            _type, script = records[0]['content'].split(' ', 1)
+            if (
+                _type in ('A', 'AAAA', 'CNAME')
+                and script.startswith('"')
+                and script.endswith('"')
+            ):
+                try:
+                    data = _dynamic_decode(script[1:-1], _type)
+                except ValueError:
+                    pass
+                else:
+                    data['ttl'] = rrset['ttl']
+                    return data
         values = []
-        for record in rrset['records']:
+        for record in records:
             _type, script = record['content'].split(' ', 1)
             values.append({'type': _type, 'script': script[1:-1]})
         return {
@@ -532,8 +552,17 @@ class PowerDnsBaseProvider(BaseProvider):
             {'content': v, 'disabled': False} for v in record.values
         ], record._type
 
-    _records_for_A = _records_for_multiple
-    _records_for_AAAA = _records_for_multiple
+    def _records_for_dynamic(self, record):
+        script = _dynamic_encode(record)
+        content = f'{record._type} "{script}"'
+        return [{'content': content, 'disabled': False}], 'LUA'
+
+    def _records_for_A(self, record):
+        if record.dynamic:
+            return self._records_for_dynamic(record)
+        return self._records_for_multiple(record)
+
+    _records_for_AAAA = _records_for_A
     _records_for_NS = _records_for_multiple
     _records_for_PTR = _records_for_multiple
 
@@ -563,7 +592,11 @@ class PowerDnsBaseProvider(BaseProvider):
         return [{'content': record.value, 'disabled': False}], record._type
 
     _records_for_ALIAS = _records_for_single
-    _records_for_CNAME = _records_for_single
+
+    def _records_for_CNAME(self, record):
+        if record.dynamic:
+            return self._records_for_dynamic(record)
+        return self._records_for_single(record)
 
     def _records_for_quoted(self, record):
         return [
@@ -643,13 +676,13 @@ class PowerDnsBaseProvider(BaseProvider):
             for v in record.values
         ], 'LUA'
 
+    def _records_for(self, record):
+        name = f'_records_for_{record._type}'.replace('/', '_')
+        return getattr(self, name)(record)
+
     def _mod_Create(self, change):
         new = change.new
-        records_for = f'_records_for_{new._type}'.replace('/', '_')
-        records_for = getattr(self, records_for)
-        records = records_for(new)
-
-        records, _type = records_for(new)
+        records, _type = self._records_for(new)
         return {
             'name': new.fqdn,
             'type': _type,
@@ -658,15 +691,34 @@ class PowerDnsBaseProvider(BaseProvider):
             'records': records,
         }
 
-    _mod_Update = _mod_Create
+    def _mod_Update(self, change):
+        new_records, new_type = self._records_for(change.new)
+        _, existing_type = self._records_for(change.existing)
+        replace = {
+            'name': change.new.fqdn,
+            'type': new_type,
+            'ttl': change.new.ttl,
+            'changetype': 'REPLACE',
+            'records': new_records,
+        }
+        # When the backing rrset type changes (e.g. a static A becoming a
+        # dynamic A, which is stored as an LUA rrset), the old rrset has to
+        # be explicitly deleted — a REPLACE on the new type leaves the old
+        # rrset alone.
+        if existing_type != new_type:
+            return [
+                {
+                    'name': change.existing.fqdn,
+                    'type': existing_type,
+                    'changetype': 'DELETE',
+                },
+                replace,
+            ]
+        return replace
 
     def _mod_Delete(self, change):
         existing = change.existing
-        records_for = f'_records_for_{existing._type}'.replace('/', '_')
-        records_for = getattr(self, records_for)
-        records = records_for(existing)
-
-        records, _type = records_for(existing)
+        records, _type = self._records_for(existing)
         return {
             'name': existing.fqdn,
             'type': _type,
@@ -692,7 +744,11 @@ class PowerDnsBaseProvider(BaseProvider):
         mods = []
         for change in changes:
             class_name = change.__class__.__name__
-            mods.append(getattr(self, f'_mod_{class_name}')(change))
+            result = getattr(self, f'_mod_{class_name}')(change)
+            if isinstance(result, list):
+                mods.extend(result)
+            else:
+                mods.append(result)
 
         # Ensure that any DELETE modifications always occur before any REPLACE
         # modifications. This ensures that an A record can be replaced by a
