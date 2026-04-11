@@ -1,4 +1,4 @@
-version: "3.9"  # optional since v1.27.0
+version: "3.9"
 
 volumes:
   powerdns-db-data:
@@ -13,17 +13,31 @@ services:
       MYSQL_ROOT_PASSWORD: l3tmein
     volumes:
       - powerdns-db-data:/var/lib/mysql
+
   powerdns:
-    image: psitrax/powerdns
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: octodns-powerdns-dev
     ports:
       - "8053:53/tcp"
       - "8053:53/udp"
       - "8081:8081"
     environment:
-      MYSQL_HOST: db
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASS: l3tmein
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: l3tmein
+      DB_NAME: pdns
+      API_KEY: its@secret
+      WEBSERVER_PASSWORD: its@secret
     depends_on:
       - db
-    command: --api=yes --api-key=its@secret --loglevel=99 --webserver=yes --webserver-address=0.0.0.0 --webserver-allow-from=0.0.0.0/0 --webserver-password=its@secret --webserver-port=8081 --enable-lua-records=shared --edns-subnet-processing=yes
+    volumes:
+      # :z relabels for SELinux on Fedora/RHEL hosts; harmless elsewhere.
+      # Stub geoipbackend zones file — loaded only so the backend has something
+      # to chew on; real zones are served by gmysql.
+      - ./docker/geoip.yaml:/etc/powerdns/geoip.yaml:ro,z
+      # Synthetic MaxMind test data (Apache-2.0). See
+      # docker/GeoIP2-City-Test.mmdb.NOTICE.
+      - ./docker/GeoIP2-City-Test.mmdb:/etc/powerdns/GeoIP2-City-Test.mmdb:ro,z
