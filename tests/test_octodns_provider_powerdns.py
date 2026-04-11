@@ -313,7 +313,7 @@ class TestPowerDnsProvider(TestCase):
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
-        self.assertEqual(25, expected_n)
+        self.assertEqual(26, expected_n)
 
         # No diffs == no changes
         with requests_mock() as mock:
@@ -321,7 +321,7 @@ class TestPowerDnsProvider(TestCase):
 
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEqual(25, len(zone.records))
+            self.assertEqual(26, len(zone.records))
             changes = expected.changes(zone, provider)
             self.assertEqual(0, len(changes))
 
@@ -418,7 +418,7 @@ class TestPowerDnsProvider(TestCase):
             'test', join(dirname(__file__), 'config'), supports_root_ns=False
         )
         source.populate(expected)
-        self.assertEqual(29, len(expected.records))
+        self.assertEqual(30, len(expected.records))
 
         # A small change to a single record
         with requests_mock() as mock:
@@ -942,6 +942,61 @@ class TestPowerDnsProvider(TestCase):
             'test', 'non.existent', 'api-key', enable_dynamic=False
         )
         self.assertFalse(provider.SUPPORTS_DYNAMIC)
+
+    def test_dynamic_round_trip_via_rrset(self):
+        # End-to-end codegen + parse: build a dynamic A, run it through
+        # _records_for_A to produce the rrset content, then hand that rrset
+        # back to _data_for_LUA and rebuild a record. The rebuilt record's
+        # serialized form must match the original — that's the invariant
+        # populate-after-apply relies on.
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        original = self._dynamic_a()
+        records, _type = provider._records_for_A(original)
+        rrset = {
+            'name': original.fqdn,
+            'type': _type,
+            'ttl': original.ttl,
+            'records': records,
+        }
+        data = provider._data_for_LUA(rrset)
+        rebuilt = Record.new(Zone('unit.tests.', []), original.name, data)
+        self.assertEqual(original._data(), rebuilt._data())
+
+    def test_data_for_LUA_multi_record_legacy_path(self):
+        # Multi-record LUA rrsets (the pre-dynamic PowerDnsLuaRecord use case)
+        # are never decoded as dynamic, even if one of the entries happens to
+        # look like a marker — the dynamic decoder only runs for single-entry
+        # rrsets.
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        rrset = {
+            'name': 'lua.unit.tests.',
+            'type': 'LUA',
+            'ttl': 60,
+            'records': [
+                {'content': 'A ";return \'1.2.3.4\'"', 'disabled': False},
+                {'content': 'AAAA ";return \'fc00::42\'"', 'disabled': False},
+            ],
+        }
+        data = provider._data_for_LUA(rrset)
+        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
+        self.assertEqual(2, len(data['values']))
+
+    def test_data_for_LUA_malformed_marker_raises(self):
+        # A content entry that starts with the dynamic marker but carries a
+        # broken payload must raise ProviderException, not silently fall back
+        # to PowerDnsLuaRecord — a corrupt marker is a bug, not a missing one.
+        from octodns_powerdns.dynamic import DYNAMIC_MARKER
+
+        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        broken = f'A ";{DYNAMIC_MARKER}AAAA"'
+        rrset = {
+            'name': 'www.unit.tests.',
+            'type': 'LUA',
+            'ttl': 60,
+            'records': [{'content': broken, 'disabled': False}],
+        }
+        with self.assertRaises(ProviderException):
+            provider._data_for_LUA(rrset)
 
 
 class TestPowerDnsLuaRecord(TestCase):

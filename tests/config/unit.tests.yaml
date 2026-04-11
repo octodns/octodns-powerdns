@@ -87,6 +87,24 @@ dname:
   ttl: 300
   type: DNAME
   value: unit.tests.
+dyn:
+  dynamic:
+    pools:
+      default:
+        values:
+        - value: 5.5.5.5
+      eu:
+        values:
+        - value: 1.1.1.1
+    rules:
+    - geos:
+      - EU
+      pool: eu
+    - pool: default
+  ttl: 60
+  type: A
+  values:
+  - 5.5.5.5
 excluded:
   octodns:
     excluded:
