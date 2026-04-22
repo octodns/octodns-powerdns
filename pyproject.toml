@@ -1,17 +1,19 @@
 [tool.black]
-line-length=80
-skip-string-normalization=true
-skip-magic-trailing-comma=true
+line-length = 80
+skip-string-normalization = true
+skip-magic-trailing-comma = true
 
 [tool.isort]
 profile = "black"
-known_first_party="octodns_powerdns"
-known_octodns="octodns"
-line_length=80
-sections="FUTURE,STDLIB,THIRDPARTY,OCTODNS,FIRSTPARTY,LOCALFOLDER"
+known_first_party = "octodns_powerdns"
+known_octodns = "octodns"
+line_length = 80
+sections = "FUTURE,STDLIB,THIRDPARTY,OCTODNS,FIRSTPARTY,LOCALFOLDER"
 
 [tool.pytest.ini_options]
 filterwarnings = [
-    'error',
+  'error',
+  # required until migrate the check and require octoDNS >= 2.x
+  'ignore:`_PowerDnsLuaValue.validate` classmethod is DEPRECATED:DeprecationWarning:octodns.record.base',
 ]
 pythonpath = "."
