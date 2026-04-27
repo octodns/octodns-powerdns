@@ -309,6 +309,18 @@
         },
         {
             "comments": [],
+            "name": "dyn.unit.tests.",
+            "records": [
+                {
+                    "content": "A \";-- octodns-dynamic:v1:eyJwb29scyI6eyJkZWZhdWx0Ijp7ImZhbGxiYWNrIjpudWxsLCJ2YWx1ZXMiOlt7InN0YXR1cyI6Im9iZXkiLCJ2YWx1ZSI6IjUuNS41LjUiLCJ3ZWlnaHQiOjF9XX0sImV1Ijp7ImZhbGxiYWNrIjpudWxsLCJ2YWx1ZXMiOlt7InN0YXR1cyI6Im9iZXkiLCJ2YWx1ZSI6IjEuMS4xLjEiLCJ3ZWlnaHQiOjF9XX19LCJydWxlcyI6W3siZ2VvcyI6WyJFVSJdLCJwb29sIjoiZXUifSx7InBvb2wiOiJkZWZhdWx0In1dfQ==\nif (continent('EU')) then return pickwhashed({{1, '1.1.1.1'}})\nend\nreturn pickwhashed({{1, '5.5.5.5'}})\"",
+                    "disabled": false
+                }
+            ],
+            "ttl": 60,
+            "type": "LUA"
+        },
+        {
+            "comments": [],
             "name": "lua.unit.tests.",
             "records": [
                 {
