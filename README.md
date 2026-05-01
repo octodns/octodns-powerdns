@@ -52,6 +52,9 @@ providers:
       # notify: false
       # The PowerDNS server id used in API URLs (optional, default localhost)
       # server_id: localhost
+      # Force dynamic record support on/off, bypassing the runtime probe
+      # (optional, default None — probe /config to decide)
+      # enable_dynamic: true
 ```
 
 ### Support Information
@@ -66,7 +69,48 @@ PowerDnsProvider supports full root NS record management.
 
 #### Dynamic
 
-PowerDnsProvider does not support dynamic records.
+PowerDnsProvider supports dynamic A, AAAA, and CNAME records by generating
+[PowerDNS LUA records](https://doc.powerdns.com/authoritative/lua-records/index.html)
+that route answers via the `continent()`, `country()`, and `region()` geo
+helpers backed by the
+[geoipbackend](https://doc.powerdns.com/authoritative/backends/geoip.html).
+Pool values are emitted as `pickwhashed({{weight, value}, ...})`; pool
+fallback chains are flattened into the selected pool's value list at encode
+time.
+
+The full octoDNS dynamic payload (pools, rules, weights, fallback) is
+embedded in a leading Lua comment as a base64-encoded JSON blob so that
+`populate` after an `apply` round-trips cleanly — octodns-powerdns parses
+that marker rather than trying to read back the generated Lua.
+
+##### Out of scope
+
+- Subnet-based rules (`SUPPORTS_DYNAMIC_SUBNETS=False`) — octoDNS core strips
+  them before they reach the provider.
+- Per-value pool status (`SUPPORTS_POOL_VALUE_STATUS=False`) — all values are
+  treated as `obey`.
+- Manually-authored LUA records (`PowerDnsProvider/LUA`) — still supported
+  via the existing opaque path; they are never reinterpreted as dynamic.
+
+##### Server requirements
+
+For dynamic records to actually resolve correctly, the PowerDNS server must
+have:
+
+1. `enable-lua-records=yes` (or `shared`)
+2. The `geoipbackend` loaded via `launch=...,geoip` **and** a MaxMind database
+   configured via `geoip-database-files=...`
+
+**Silent-failure warning:** if `enable-lua-records` is on but the geoip
+backend is not loaded, PowerDNS will happily serve the generated Lua but
+every `continent()`/`country()` call will return an empty string — every
+request falls through to the catchall pool. octodns-powerdns probes
+`GET /api/v1/servers/{server_id}/config` once per run to check both settings
+and disables dynamic support (logging a warning) if either is missing.
+
+If the probe can't run (for example, the API key lacks access to `config`),
+set `enable_dynamic: true` on the provider to force dynamic support on. Set
+`enable_dynamic: false` to force it off regardless of server configuration.
 
 ### Development
 
