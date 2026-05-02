@@ -112,6 +112,7 @@ class PowerDnsBaseProvider(BaseProvider):
         master_tsig_key_ids=[],
         slave_tsig_key_ids=[],
         notify=False,
+        server_id='localhost',
         *args,
         **kwargs,
     ):
@@ -130,6 +131,7 @@ class PowerDnsBaseProvider(BaseProvider):
         self.scheme = scheme
         self.timeout = timeout
         self.notify = notify
+        self.server_id = server_id
 
         self._powerdns_version = None
 
@@ -169,7 +171,7 @@ class PowerDnsBaseProvider(BaseProvider):
 
         url = (
             f'{self.scheme}://{self.host}:{self.port:d}/api/v1/servers/'
-            f'localhost/{path}'.rstrip('/')
+            f'{self.server_id}/{path}'.rstrip('/')
         )
         # Strip trailing / from url.
         resp = self._sess.request(method, url, json=data, timeout=self.timeout)
