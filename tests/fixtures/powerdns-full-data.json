@@ -384,5 +384,7 @@
     "serial": 2017012803,
     "soa_edit": "",
     "soa_edit_api": "INCEPTION-INCREMENT",
+    "master_tsig_key_ids": ["unit_tsig_master."],
+    "slave_tsig_key_ids": ["unit_tsig_slave."],
     "url": "api/v1/servers/localhost/zones/unit.tests."
 }
