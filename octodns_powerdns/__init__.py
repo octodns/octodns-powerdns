@@ -484,7 +484,9 @@ class PowerDnsBaseProvider(BaseProvider):
         self._slave_tsig_key_ids = values
 
     def validate_tsig_config(self, which, values):
-        if not isinstance(values, list) or not all([isinstance(v, str) for v in values]):
+        if not isinstance(values, list) or not all(
+            [isinstance(v, str) for v in values]
+        ):
             raise ValueError(
                 f'invalid {which}_tsig_key_ids, "{values}" - should be a list of strings'
             )
@@ -705,7 +707,7 @@ class PowerDnsBaseProvider(BaseProvider):
 
         encoded_name = _encode_zone_name(name)
 
-        #zone={}
+        # zone={}
         zone = self.read_zonecache(encoded_name)
 
         if not zone:
@@ -718,7 +720,10 @@ class PowerDnsBaseProvider(BaseProvider):
                 if e.response.status_code == 401:
                     # Nicer error message for auth problems
                     raise Exception(f'PowerDNS unauthorized host={self.host}')
-                elif e.response.status_code == 404 and self.check_status_not_found:
+                elif (
+                    e.response.status_code == 404
+                    and self.check_status_not_found
+                ):
                     # 404 means powerdns doesn't know anything about the requested
                     # domain. We'll just ignore it here and leave the zone
                     # untouched.
