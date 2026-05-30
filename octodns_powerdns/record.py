@@ -1,6 +1,34 @@
 from octodns.equality import EqualityTupleMixin
 from octodns.record import Record, ValuesMixin
 
+try:  # pragma: no cover
+    from octodns.record.validator import ValueValidator
+
+    _HAS_VALUE_VALIDATOR = True
+except ImportError:  # pragma: no cover
+    _HAS_VALUE_VALIDATOR = False
+
+
+def _validate_powerdns_lua_values(data):
+    if not isinstance(data, (list, tuple)):
+        data = (data,)
+    reasons = []
+    if len(data) == 0:
+        reasons.append('at least one value required')
+    for value in data:
+        if 'type' not in value:
+            reasons.append('missing type')
+        if 'script' not in value:
+            reasons.append('missing script')
+    return reasons
+
+
+if _HAS_VALUE_VALIDATOR:  # pragma: no cover
+
+    class _PowerDnsLuaValueValidator(ValueValidator):
+        def validate(self, value_cls, data, _type):
+            return _validate_powerdns_lua_values(data)
+
 
 class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     # See https://doc.powerdns.com/authoritative/lua-records/index.html for the
@@ -8,19 +36,11 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     # https://gist.github.com/ahupowerdns/1e8bfbba95a277a4fac09cb3654eb2ac
     # has some good example scripts
 
-    @classmethod
-    def validate(cls, data, _type):
-        if not isinstance(data, (list, tuple)):
-            data = (data,)
-        reasons = []
-        if len(data) == 0:
-            reasons.append('at least one value required')
-        for value in data:
-            if 'type' not in value:
-                reasons.append('missing type')
-            if 'script' not in value:
-                reasons.append('missing script')
-        return reasons
+    if not _HAS_VALUE_VALIDATOR:  # pragma: no cover
+
+        @classmethod
+        def validate(cls, data, _type):
+            return _validate_powerdns_lua_values(data)
 
     @classmethod
     def process(cls, values):
@@ -63,6 +83,9 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
 class PowerDnsLuaRecord(ValuesMixin, Record):
     _type = 'PowerDnsProvider/LUA'
     _value_type = _PowerDnsLuaValue
+
+    if _HAS_VALUE_VALIDATOR:  # pragma: no cover
+        VALIDATORS = [_PowerDnsLuaValueValidator('powerdns-lua-value')]
 
 
 Record.register_type(PowerDnsLuaRecord)

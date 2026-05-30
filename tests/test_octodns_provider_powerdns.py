@@ -24,6 +24,22 @@ from octodns_powerdns import (
 )
 from octodns_powerdns.record import PowerDnsLuaRecord, _PowerDnsLuaValue
 
+try:
+    from octodns_powerdns.record import _PowerDnsLuaValueValidator
+
+    _powerdns_lua_validator = _PowerDnsLuaValueValidator('powerdns-lua-value')
+
+    def _validate_lua(data):
+        return _powerdns_lua_validator.validate(
+            _PowerDnsLuaValue, data, PowerDnsLuaRecord._type
+        )
+
+except ImportError:
+
+    def _validate_lua(data):
+        return _PowerDnsLuaValue.validate(data, PowerDnsLuaRecord._type)
+
+
 EMPTY_TEXT = '''
 {
     "account": "",
@@ -309,7 +325,10 @@ class TestPowerDnsProvider(TestCase):
 
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
@@ -415,7 +434,10 @@ class TestPowerDnsProvider(TestCase):
     def test_small_change(self):
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
         self.assertEqual(30, len(expected.records))
@@ -473,7 +495,10 @@ class TestPowerDnsProvider(TestCase):
     def test_notify(self):
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
 
@@ -1089,20 +1114,14 @@ class TestPowerDnsLuaRecord(TestCase):
     def test_lua_validate(self):
         val = {'type': 'A', 'script': ''}
         # single value
-        self.assertFalse(
-            _PowerDnsLuaValue.validate(val, PowerDnsLuaRecord._type)
-        )
+        self.assertFalse(_validate_lua(val))
         # tuple of values
-        self.assertFalse(
-            _PowerDnsLuaValue.validate((val), PowerDnsLuaRecord._type)
-        )
+        self.assertFalse(_validate_lua((val)))
         # list of values
-        self.assertFalse(
-            _PowerDnsLuaValue.validate([val, val], PowerDnsLuaRecord._type)
-        )
+        self.assertFalse(_validate_lua([val, val]))
 
         # list w/a bad value
-        got = _PowerDnsLuaValue.validate([val, {}], PowerDnsLuaRecord._type)
+        got = _validate_lua([val, {}])
         self.assertEqual(['missing type', 'missing script'], got)
 
     def test_encode_zone_name(self):
