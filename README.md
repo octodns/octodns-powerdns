@@ -69,6 +69,9 @@ PowerDnsProvider supports full root NS record management.
 
 #### Dynamic
 
+> [!WARNING]
+> **Upgrade Note**: Prior to this release, dynamic records were not supported by this provider and were treated as standard/static records. Upgrading will cause any existing dynamic records in your zone configurations to be created as PowerDNS `LUA` records. If your server is not fully configured for LUA and GeoIP routing, or if you want to maintain the previous behavior, you must set `enable_dynamic: false` in your provider configuration.
+
 PowerDnsProvider supports dynamic A, AAAA, and CNAME records by generating
 [PowerDNS LUA records](https://doc.powerdns.com/authoritative/lua-records/index.html)
 that route answers via the `continent()`, `country()`, and `region()` geo
