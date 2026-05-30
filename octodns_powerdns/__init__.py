@@ -58,7 +58,7 @@ def _escape_unescaped_semicolons(value):
 
 class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
-    SUPPORTS_DYNAMIC_SUBNETS = False
+    SUPPORTS_DYNAMIC_SUBNETS = True
     SUPPORTS_POOL_VALUE_STATUS = False
     SUPPORTS_ROOT_NS = True
     SUPPORTS_MULTIVALUE_PTR = True
