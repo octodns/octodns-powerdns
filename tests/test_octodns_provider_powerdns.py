@@ -325,7 +325,10 @@ class TestPowerDnsProvider(TestCase):
 
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
         expected_n = len(expected.records) - 4
@@ -440,7 +443,10 @@ class TestPowerDnsProvider(TestCase):
     def test_small_change(self):
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
         self.assertEqual(29, len(expected.records))
@@ -499,7 +505,10 @@ class TestPowerDnsProvider(TestCase):
     def test_notify(self):
         expected = Zone('unit.tests.', [])
         source = YamlProvider(
-            'test', join(dirname(__file__), 'config'), supports_root_ns=False
+            'test',
+            join(dirname(__file__), 'config'),
+            supports_root_ns=False,
+            escaped_semicolons=False,
         )
         source.populate(expected)
 
