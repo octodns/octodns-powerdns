@@ -1,0 +1,9 @@
+GeoIP2-City-Test.mmdb is a synthetic test fixture from the MaxMind/MaxMind-DB
+project (https://github.com/maxmind/MaxMind-DB/tree/main/test-data), included
+here only to let the docker-compose dev environment exercise PowerDNS Lua
+record geo functions (continent/country/region) locally.
+
+It is NOT a real GeoIP database and must NOT be used in production.
+
+Upstream license: Apache License 2.0
+  https://github.com/maxmind/MaxMind-DB/blob/main/LICENSE-APACHE

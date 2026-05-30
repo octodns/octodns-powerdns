@@ -1,0 +1,16 @@
+# geoipbackend zones file.
+#
+# We only load the geoipbackend so that PowerDNS LUA records can call
+# continent()/country()/region(). All real zones are served by gmysql.
+#
+# PowerDNS 4.7 chokes on an empty `domains: []` while filling the zone cache,
+# so we hand it a single stub zone for `.invalid` (RFC 2606, reserved for
+# non-resolvable use) which cannot conflict with anything real.
+domains:
+  - domain: geoip.invalid
+    ttl: 60
+    records:
+      geoip.invalid:
+        - soa: "ns1.geoip.invalid hostmaster.geoip.invalid 1 7200 3600 604800 60"
+        - ns: ns1.geoip.invalid
+        - a: 127.0.0.1
