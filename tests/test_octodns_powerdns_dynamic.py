@@ -188,7 +188,7 @@ class TestDynamicEncode(TestCase):
             encode(rec)
         self.assertIn('non-dynamic', str(ctx.exception))
 
-    def test_encode_subnet_rule_raises(self):
+    def test_encode_subnet_only_rule(self):
         rec = _record(
             values=['5.5.5.5'],
             dynamic={
@@ -202,9 +202,75 @@ class TestDynamicEncode(TestCase):
                 ],
             },
         )
-        with self.assertRaises(ProviderException) as ctx:
-            encode(rec)
-        self.assertIn('subnet', str(ctx.exception))
+        script = encode(rec)
+        self.assertIn("if (netmask({'10.0.0.0/8'})) then", script)
+        self.assertIn("return pickwhashed({{1, '1.1.1.1'}})", script)
+        self.assertIn("return pickwhashed({{1, '5.5.5.5'}})", script)
+
+    def test_encode_multi_subnet(self):
+        rec = _record(
+            values=['5.5.5.5'],
+            dynamic={
+                'pools': {
+                    'p': {'values': [{'value': '1.1.1.1'}]},
+                    'default': {'values': [{'value': '5.5.5.5'}]},
+                },
+                'rules': [
+                    {'subnets': ['10.0.0.0/8', '192.168.0.0/16'], 'pool': 'p'},
+                    {'pool': 'default'},
+                ],
+            },
+        )
+        script = encode(rec)
+        # core sorts subnets lexicographically; '10...' < '192...'
+        self.assertIn(
+            "if (netmask({'10.0.0.0/8', '192.168.0.0/16'})) then", script
+        )
+
+    def test_encode_subnet_and_geo_rule(self):
+        rec = _record(
+            values=['5.5.5.5'],
+            dynamic={
+                'pools': {
+                    'p': {'values': [{'value': '1.1.1.1'}]},
+                    'default': {'values': [{'value': '5.5.5.5'}]},
+                },
+                'rules': [
+                    {'subnets': ['10.0.0.0/8'], 'geos': ['EU'], 'pool': 'p'},
+                    {'pool': 'default'},
+                ],
+            },
+        )
+        script = encode(rec)
+        # subnet part comes first, then geo; OR-joined
+        self.assertIn(
+            "if (netmask({'10.0.0.0/8'})) or (continent('EU')) then", script
+        )
+
+    def test_encode_subnet_before_geo_ordering(self):
+        # core ordering: subnet-only → geo-only → catchall;
+        # the if/elseif chain must reflect that order
+        rec = _record(
+            values=['5.5.5.5'],
+            dynamic={
+                'pools': {
+                    'ten': {'values': [{'value': '1.1.1.1'}]},
+                    'eu': {'values': [{'value': '2.2.2.2'}]},
+                    'default': {'values': [{'value': '5.5.5.5'}]},
+                },
+                'rules': [
+                    {'subnets': ['10.0.0.0/8'], 'pool': 'ten'},
+                    {'geos': ['EU'], 'pool': 'eu'},
+                    {'pool': 'default'},
+                ],
+            },
+        )
+        script = encode(rec)
+        lines = script.splitlines()
+        # marker, if (subnet), elseif (geo), end, return
+        self.assertTrue(lines[1].startswith("if (netmask({'10.0.0.0/8'}))"))
+        self.assertTrue(lines[2].startswith("elseif (continent('EU'))"))
+        self.assertEqual('end', lines[3])
 
     def test_encode_multiple_catchalls_raises(self):
         # Hand-craft a record then poke an extra catchall rule in — octoDNS
@@ -354,6 +420,30 @@ class TestDynamicRoundTrip(TestCase):
                     'default': {'values': [{'value': 'default.example.com.'}]},
                 },
                 'rules': [{'geos': ['EU'], 'pool': 'eu'}, {'pool': 'default'}],
+            },
+        )
+        self._round_trip(rec)
+
+    def test_subnets(self):
+        rec = _record(
+            values=['5.5.5.5'],
+            dynamic={
+                'pools': {
+                    'ten': {'values': [{'value': '1.1.1.1'}]},
+                    'eu': {'values': [{'value': '2.2.2.2'}]},
+                    'default': {'values': [{'value': '5.5.5.5'}]},
+                },
+                'rules': [
+                    # subnet-only rule comes first (core ordering)
+                    {'subnets': ['10.0.0.0/8'], 'pool': 'ten'},
+                    # subnet+geo rule (core ordering: after subnet-only)
+                    {
+                        'subnets': ['172.16.0.0/12'],
+                        'geos': ['EU'],
+                        'pool': 'eu',
+                    },
+                    {'pool': 'default'},
+                ],
             },
         )
         self._round_trip(rec)

@@ -76,20 +76,26 @@ PowerDnsProvider supports dynamic A, AAAA, and CNAME records by generating
 [PowerDNS LUA records](https://doc.powerdns.com/authoritative/lua-records/index.html)
 that route answers via the `continent()`, `country()`, and `region()` geo
 helpers backed by the
-[geoipbackend](https://doc.powerdns.com/authoritative/backends/geoip.html).
+[geoipbackend](https://doc.powerdns.com/authoritative/backends/geoip.html),
+and via the `netmask({...})` helper for subnet/CIDR-based routing.
 Pool values are emitted as `pickwhashed({{weight, value}, ...})`; pool
 fallback chains are flattened into the selected pool's value list at encode
 time.
 
-The full octoDNS dynamic payload (pools, rules, weights, fallback) is
+Subnet/CIDR-based rules are emitted using PowerDNS's `netmask({...})` helper,
+which matches the client IP against the listed CIDRs and does **not** require
+the geoip backend. A rule may combine subnets and geos; the client matches if
+it falls in any listed subnet **or** matches any listed geo. As required by
+octoDNS, subnet-based rules take precedence over geo-only rules — ensured
+naturally by the `if/elseif` chain ordering.
+
+The full octoDNS dynamic payload (pools, rules, weights, fallback, subnets) is
 embedded in a leading Lua comment as a base64-encoded JSON blob so that
 `populate` after an `apply` round-trips cleanly — octodns-powerdns parses
 that marker rather than trying to read back the generated Lua.
 
 ##### Out of scope
 
-- Subnet-based rules (`SUPPORTS_DYNAMIC_SUBNETS=False`) — octoDNS core strips
-  them before they reach the provider.
 - Per-value pool status (`SUPPORTS_POOL_VALUE_STATUS=False`) — all values are
   treated as `obey`.
 - Manually-authored LUA records (`PowerDnsProvider/LUA`) — still supported
@@ -98,11 +104,14 @@ that marker rather than trying to read back the generated Lua.
 ##### Server requirements
 
 For dynamic records to actually resolve correctly, the PowerDNS server must
-have:
+have `enable-lua-records=yes` (or `shared`). Geo-based routing additionally
+requires:
 
-1. `enable-lua-records=yes` (or `shared`)
-2. The `geoipbackend` loaded via `launch=...,geoip` **and** a MaxMind database
+1. The `geoipbackend` loaded via `launch=...,geoip` **and** a MaxMind database
    configured via `geoip-database-files=...`
+
+Subnet/CIDR-based routing uses `netmask()` which is a built-in Lua function
+and works with just `enable-lua-records` — no geoip backend is needed.
 
 **Silent-failure warning:** if `enable-lua-records` is on but the geoip
 backend is not loaded, PowerDNS will happily serve the generated Lua but
@@ -110,6 +119,12 @@ every `continent()`/`country()` call will return an empty string — every
 request falls through to the catchall pool. octodns-powerdns probes
 `GET /api/v1/servers/{server_id}/config` once per run to check both settings
 and disables dynamic support (logging a warning) if either is missing.
+
+> [!NOTE]
+> The probe currently gates **all** dynamic support (including subnet-only
+> records) on the geoip backend being configured. If you are using only
+> subnet-based routing and do not have geoip configured, set
+> `enable_dynamic: true` on the provider to force dynamic support on.
 
 If the probe can't run (for example, the API key lacks access to `config`),
 set `enable_dynamic: true` on the provider to force dynamic support on. Set

@@ -27,8 +27,18 @@ def _geo_condition(code):
     return f"continent('{parsed['continent_code']}')"
 
 
-def _rule_condition(geos):
-    parts = [f'({_geo_condition(g)})' for g in geos]
+def _subnet_condition(subnets):
+    entries = ', '.join(f"'{s}'" for s in subnets)
+    return f'netmask({{{entries}}})'
+
+
+def _rule_condition(data):
+    parts = []
+    subnets = data.get('subnets') or []
+    if subnets:
+        parts.append(f'({_subnet_condition(subnets)})')
+    for g in data.get('geos') or []:
+        parts.append(f'({_geo_condition(g)})')
     return ' or '.join(parts)
 
 
@@ -72,19 +82,14 @@ def encode(record):
     conditional = []
     for rule in dynamic.rules:
         data = rule.data
-        if data.get('subnets'):
-            raise ProviderException(
-                f'{record.fqdn} {record._type}: subnet rules are not supported'
-            )
-        geos = data.get('geos') or []
-        if not geos:
+        if not (data.get('geos') or data.get('subnets')):
             if catchall is not None:
                 raise ProviderException(
                     f'{record.fqdn} {record._type}: multiple catchall rules'
                 )
             catchall = data['pool']
             continue
-        conditional.append((geos, data['pool']))
+        conditional.append(data)
 
     if catchall is None:
         raise ProviderException(
@@ -92,10 +97,12 @@ def encode(record):
         )
 
     lines = [f';{DYNAMIC_MARKER}{_marker_payload(record)}']
-    for i, (geos, pool) in enumerate(conditional):
+    for i, data in enumerate(conditional):
         keyword = 'if' if i == 0 else 'elseif'
-        cond = _rule_condition(geos)
-        lines.append(f'{keyword} {cond} then return {_pool_lua(pool, dynamic)}')
+        cond = _rule_condition(data)
+        lines.append(
+            f'{keyword} {cond} then return {_pool_lua(data["pool"], dynamic)}'
+        )
     if conditional:
         lines.append('end')
     lines.append(f'return {_pool_lua(catchall, dynamic)}')
