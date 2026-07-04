@@ -2,11 +2,15 @@ from octodns.equality import EqualityTupleMixin
 from octodns.record import Record, ValuesMixin
 
 try:  # pragma: no cover
-    from octodns.record.validator import ValueValidator
+    import octodns.record.validator
 
-    _HAS_VALUE_VALIDATOR = True
+    _HAS_VALUE_VALIDATOR = hasattr(octodns.record.validator, 'ValueValidator')
+    _HAS_VALIDATION_REASON = hasattr(
+        octodns.record.validator, 'ValidationReason'
+    )
 except ImportError:  # pragma: no cover
     _HAS_VALUE_VALIDATOR = False
+    _HAS_VALIDATION_REASON = False
 
 
 def _validate_powerdns_lua_values(data):
@@ -25,9 +29,17 @@ def _validate_powerdns_lua_values(data):
 
 if _HAS_VALUE_VALIDATOR:  # pragma: no cover
 
-    class _PowerDnsLuaValueValidator(ValueValidator):
+    class _PowerDnsLuaValueValidator(octodns.record.validator.ValueValidator):
         def validate(self, value_cls, data, _type):
-            return _validate_powerdns_lua_values(data)
+            reasons = _validate_powerdns_lua_values(data)
+            if _HAS_VALIDATION_REASON:
+                return [
+                    octodns.record.validator.ValidationReason(
+                        r, validator_id=self.id
+                    )
+                    for r in reasons
+                ]
+            return reasons
 
 
 class _PowerDnsLuaValue(EqualityTupleMixin, dict):

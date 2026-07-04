@@ -1035,9 +1035,7 @@ class TestPowerDnsLuaRecord(TestCase):
                 'lua',
                 {'type': PowerDnsLuaRecord._type, 'ttl': 42, 'values': []},
             )
-        self.assertEqual(
-            'at least one value required', ctx.exception.reasons[0]
-        )
+        self.assertIn('at least one value required', ctx.exception.reasons[0])
 
         # value missing type
         with self.assertRaises(ValidationError) as ctx:
@@ -1050,7 +1048,7 @@ class TestPowerDnsLuaRecord(TestCase):
                     'value': {'script': ''},
                 },
             )
-        self.assertEqual('missing type', ctx.exception.reasons[0])
+        self.assertIn('missing type', ctx.exception.reasons[0])
 
         # value missing script
         with self.assertRaises(ValidationError) as ctx:
@@ -1063,7 +1061,7 @@ class TestPowerDnsLuaRecord(TestCase):
                     'value': {'type': 'A'},
                 },
             )
-        self.assertEqual('missing script', ctx.exception.reasons[0])
+        self.assertIn('missing script', ctx.exception.reasons[0])
 
         # valid record with a single value
         lua = Record.new(
@@ -1110,6 +1108,26 @@ class TestPowerDnsLuaRecord(TestCase):
         # smoke tests
         lua.__repr__()
         hash(lua.values[0])
+
+    def test_legacy_validation_reasons(self):
+        import octodns_powerdns.record
+
+        # Save the original _HAS_VALIDATION_REASON
+        original = getattr(
+            octodns_powerdns.record, '_HAS_VALIDATION_REASON', False
+        )
+        octodns_powerdns.record._HAS_VALIDATION_REASON = False
+        try:
+            from octodns_powerdns.record import _PowerDnsLuaValueValidator
+
+            validator = _PowerDnsLuaValueValidator('powerdns-lua-value')
+            reasons = validator.validate(
+                _PowerDnsLuaValue, [], PowerDnsLuaRecord._type
+            )
+            self.assertEqual(['at least one value required'], reasons)
+        finally:
+            # Restore
+            octodns_powerdns.record._HAS_VALIDATION_REASON = original
 
     def test_lua_validate(self):
         val = {'type': 'A', 'script': ''}
