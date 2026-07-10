@@ -1,3 +1,12 @@
+## 1.2.0 - 2026-07-10
+
+Minor:
+* Modernize packaging: move build metadata from setup.py into pyproject.toml, remove setup.py; require Python >=3.10 - [#112](https://github.com/octodns/octodns-powerdns/pull/112)
+* Add subnet/CIDR-based routing support for dynamic records; subnet rules are encoded using PowerDNS's netmask() Lua helper - [#108](https://github.com/octodns/octodns-powerdns/pull/108)
+* Add Dynamic Record Geo Support - [#101](https://github.com/octodns/octodns-powerdns/pull/101)
+* Quick pass at migrating to Validators, backwards compat - [#103](https://github.com/octodns/octodns-powerdns/pull/103)
+* Add configurable server_id parameter for PowerDNS API - [#100](https://github.com/octodns/octodns-powerdns/pull/100)
+
 ## 1.1.0 - 2026-04-03
 
 Minor:
