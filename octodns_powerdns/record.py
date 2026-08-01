@@ -1,5 +1,5 @@
 from octodns.equality import EqualityTupleMixin
-from octodns.record import Record, ValuesMixin
+from octodns.record import RdataParseError, Record, ValuesMixin
 
 try:  # pragma: no cover
     import octodns.record.validator
@@ -11,6 +11,13 @@ try:  # pragma: no cover
 except ImportError:  # pragma: no cover
     _HAS_VALUE_VALIDATOR = False
     _HAS_VALIDATION_REASON = False
+
+
+def _unquote(value):
+    # PowerDNS always wraps the LUA script in double quotes; strip them off,
+    # mirroring octoDNS core's own `unquote()` helper
+    # (octodns.record.base.unquote, not part of the public API surface).
+    return value[1:-1]
 
 
 def _validate_powerdns_lua_values(data):
@@ -57,6 +64,17 @@ class _PowerDnsLuaValue(EqualityTupleMixin, dict):
     @classmethod
     def process(cls, values):
         return [_PowerDnsLuaValue(v) for v in values]
+
+    @classmethod
+    def from_rdata_text(cls, rdata):
+        try:
+            _type, script = rdata.split(' ', 1)
+        except ValueError:
+            raise RdataParseError()
+        return {'type': _type, 'script': _unquote(script)}
+
+    def to_rdata_text(self):
+        return f'{self._type} "{self.script}"'
 
     def __init__(self, value):
         self._type = value['type']

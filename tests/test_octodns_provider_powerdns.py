@@ -20,7 +20,6 @@ from octodns_powerdns import (
     PowerDnsBaseProvider,
     PowerDnsProvider,
     _encode_zone_name,
-    _escape_unescaped_semicolons,
 )
 from octodns_powerdns.record import PowerDnsLuaRecord, _PowerDnsLuaValue
 
@@ -589,50 +588,59 @@ class TestPowerDnsProvider(TestCase):
                 )
             )
 
-    def test_unescaped_semicolon(self):
-        # no escapes
-        self.assertEqual('', _escape_unescaped_semicolons(''))
-        self.assertEqual('hello', _escape_unescaped_semicolons('hello'))
-        self.assertEqual(
-            'hello world!', _escape_unescaped_semicolons('hello world!')
+    def test_txt_round_trip(self):
+        # TXT semicolon escaping and 255-octet chunking are now delegated to
+        # octoDNS core's RDATA API; exercise them through a real populate()
+        # rather than a standalone helper.
+        provider = PowerDnsProvider(
+            'test', 'non.existent', 'api-key', strict_supports=False
         )
 
-        # good
-        self.assertEqual('\\;', _escape_unescaped_semicolons('\\;'))
-        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo\\;'))
-        self.assertEqual(
-            'foo\\; bar\\;', _escape_unescaped_semicolons('foo\\; bar\\;')
-        )
-        self.assertEqual(
-            'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo\\; bar\\; baz\\;'),
-        )
+        long_value = 'x' * 400
+        rrsets = {
+            'rrsets': [
+                {
+                    'name': 'txt.unit.tests.',
+                    'type': 'TXT',
+                    'ttl': 600,
+                    'records': [
+                        {
+                            'content': '"v=DKIM1\\;k=rsa;s=email\\;h=sha256"',
+                            'disabled': False,
+                        }
+                    ],
+                },
+                {
+                    'name': 'long.unit.tests.',
+                    'type': 'TXT',
+                    'ttl': 600,
+                    'records': [
+                        {
+                            'content': f'"{long_value[:255]}" "{long_value[255:]}"',
+                            'disabled': False,
+                        }
+                    ],
+                },
+            ]
+        }
 
-        # missing
-        self.assertEqual('\\;', _escape_unescaped_semicolons(';'))
-        self.assertEqual('foo\\;', _escape_unescaped_semicolons('foo;'))
-        self.assertEqual(
-            'foo\\; bar\\;', _escape_unescaped_semicolons('foo; bar;')
-        )
-        self.assertEqual(
-            'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo; bar; baz;'),
-        )
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, json=rrsets)
+            zone = Zone('unit.tests.', [])
+            provider.populate(zone)
 
-        # partial
+        by_name = {r.name: r for r in zone.records}
         self.assertEqual(
-            'foo\\; bar\\; baz\\;',
-            _escape_unescaped_semicolons('foo; bar\\; baz;'),
+            ['v=DKIM1\\;k=rsa\\;s=email\\;h=sha256'], by_name['txt'].values
         )
+        self.assertEqual([long_value], by_name['long'].values)
 
-        # double escaped, left alone
-        self.assertEqual('foo\\\\;', _escape_unescaped_semicolons('foo\\\\;'))
-
-        # double ;;
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;\\;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;\\;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo\\;;'))
-        self.assertEqual('foo\\;\\;', _escape_unescaped_semicolons('foo;;'))
+        # and writing it back out re-chunks at 255 octets
+        records, _type = provider._records_for(by_name['long'])
+        self.assertEqual('TXT', _type)
+        self.assertEqual(
+            f'"{long_value[:255]}" "{long_value[255:]}"', records[0]['content']
+        )
 
     def test_list_zones(self):
         with requests_mock() as mock:
@@ -649,55 +657,43 @@ class TestPowerDnsProvider(TestCase):
             )
             self.assertEqual(['alpha.com.', 'zeta.net.'], provider.list_zones())
 
-    def test_data_for_DS_compat(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+    def test_ds_round_trip(self):
+        # DS conversion is now handled entirely by octoDNS core's RDATA API;
+        # exercise read and write through the provider's public surface.
+        provider = PowerDnsProvider(
+            'test', 'non.existent', 'api-key', strict_supports=False
+        )
 
-        rrset = {
-            'records': [{'content': 'one two three four'}],
-            'ttl': 42,
-            'type': 'DS',
+        content = (
+            '2371 13 2 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF'
+            '0123456789ABCDEF'
+        )
+        rrsets = {
+            'rrsets': [
+                {
+                    'name': 'ds.unit.tests.',
+                    'type': 'DS',
+                    'ttl': 3600,
+                    'records': [{'content': content, 'disabled': False}],
+                }
+            ]
         }
 
-        # new
-        value = provider._data_for_DS(rrset)['values'][0]
-        self.assertEqual(
-            {
-                'algorithm': 'two',
-                'digest': 'four',
-                'digest_type': 'three',
-                'key_tag': 'one',
-            },
-            value,
-        )
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, json=rrsets)
+            zone = Zone('unit.tests.', [])
+            provider.populate(zone)
 
-    def test_records_for_DS_compat(self):
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
+        record = next(iter(zone.records))
+        value = record.values[0]
+        self.assertEqual(2371, value.key_tag)
+        self.assertEqual(13, value.algorithm)
+        self.assertEqual(2, value.digest_type)
+        self.assertEqual(content.lower().split(' ', 3)[3], value.digest)
 
-        class DummyRecord:
-            _type = 'DS'
-
-            def __init__(self, value):
-                self.values = [value]
-
-        class NewFields:
-            key_tag = 'key_tag'
-            algorithm = 'algorithm'
-            digest_type = 'digest_type'
-            digest = 'digest'
-
-        new_fields = NewFields()
-
-        # new
-        data = provider._records_for_DS(DummyRecord(new_fields))[0]
-        self.assertEqual(
-            [
-                {
-                    'content': 'key_tag algorithm digest_type digest',
-                    'disabled': False,
-                }
-            ],
-            data,
-        )
+        records, _type = provider._records_for(record)
+        self.assertEqual('DS', _type)
+        self.assertEqual(content.lower(), records[0]['content'])
 
     def _dynamic_a(self, name='www', default='5.5.5.5'):
         zone = Zone('unit.tests.', [])
@@ -724,7 +720,7 @@ class TestPowerDnsProvider(TestCase):
     def test_records_for_dynamic_A(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         record = self._dynamic_a()
-        records, _type = provider._records_for_A(record)
+        records, _type = provider._records_for(record)
         self.assertEqual('LUA', _type)
         self.assertEqual(1, len(records))
         self.assertTrue(records[0]['content'].startswith('A "'))
@@ -754,7 +750,7 @@ class TestPowerDnsProvider(TestCase):
                 },
             },
         )
-        records, _type = provider._records_for_CNAME(record)
+        records, _type = provider._records_for(record)
         self.assertEqual('LUA', _type)
         self.assertTrue(records[0]['content'].startswith('CNAME "'))
 
@@ -766,55 +762,61 @@ class TestPowerDnsProvider(TestCase):
             'alias',
             {'type': 'CNAME', 'ttl': 60, 'value': 'target.example.com.'},
         )
-        records, _type = provider._records_for_CNAME(record)
+        records, _type = provider._records_for(record)
         self.assertEqual('CNAME', _type)
         self.assertEqual('target.example.com.', records[0]['content'])
 
-    def test_data_for_LUA_dynamic_marker(self):
+    def test_data_for_dynamic_marker(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         record = self._dynamic_a()
-        records, _ = provider._records_for_A(record)
+        records, _ = provider._records_for(record)
         rrset = {
             'name': 'www.unit.tests.',
             'type': 'LUA',
             'ttl': 60,
             'records': records,
         }
-        data = provider._data_for_LUA(rrset)
+        data = provider._data_for_dynamic(rrset)
         self.assertEqual('A', data['type'])
         self.assertEqual(60, data['ttl'])
         self.assertIn('dynamic', data)
         self.assertEqual(['5.5.5.5'], data['values'])
 
-    def test_data_for_LUA_single_no_marker_falls_back(self):
+    def _populate_lua(self, records):
+        provider = PowerDnsProvider(
+            'test', 'non.existent', 'api-key', strict_supports=False
+        )
+        rrsets = {
+            'rrsets': [
+                {
+                    'name': 'lua.unit.tests.',
+                    'type': 'LUA',
+                    'ttl': 60,
+                    'records': records,
+                }
+            ]
+        }
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, json=rrsets)
+            zone = Zone('unit.tests.', [])
+            provider.populate(zone)
+        return next(iter(zone.records))
+
+    def test_populate_lua_single_no_marker_falls_back(self):
         # Single-record LUA with a qtype we support but no octodns marker —
         # should fall through to the PowerDnsLuaRecord path.
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
-        rrset = {
-            'name': 'lua.unit.tests.',
-            'type': 'LUA',
-            'ttl': 60,
-            'records': [
-                {'content': 'A ";return \'1.2.3.4\'"', 'disabled': False}
-            ],
-        }
-        data = provider._data_for_LUA(rrset)
-        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
+        record = self._populate_lua(
+            [{'content': 'A ";return \'1.2.3.4\'"', 'disabled': False}]
+        )
+        self.assertEqual(PowerDnsLuaRecord._type, record._type)
 
-    def test_data_for_LUA_single_unsupported_qtype_falls_back(self):
+    def test_populate_lua_single_unsupported_qtype_falls_back(self):
         # Single-record LUA for a qtype we don't translate dynamically —
         # should also fall through.
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
-        rrset = {
-            'name': 'lua.unit.tests.',
-            'type': 'LUA',
-            'ttl': 60,
-            'records': [
-                {'content': 'TXT "return \'hello\'"', 'disabled': False}
-            ],
-        }
-        data = provider._data_for_LUA(rrset)
-        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
+        record = self._populate_lua(
+            [{'content': 'TXT "return \'hello\'"', 'disabled': False}]
+        )
+        self.assertEqual(PowerDnsLuaRecord._type, record._type)
 
     def test_mod_Update_same_rrset_type(self):
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
@@ -970,43 +972,38 @@ class TestPowerDnsProvider(TestCase):
 
     def test_dynamic_round_trip_via_rrset(self):
         # End-to-end codegen + parse: build a dynamic A, run it through
-        # _records_for_A to produce the rrset content, then hand that rrset
-        # back to _data_for_LUA and rebuild a record. The rebuilt record's
-        # serialized form must match the original — that's the invariant
-        # populate-after-apply relies on.
+        # _records_for to produce the rrset content, then hand that rrset
+        # back to _data_for_dynamic and rebuild a record. The rebuilt
+        # record's serialized form must match the original — that's the
+        # invariant populate-after-apply relies on.
         provider = PowerDnsProvider('test', 'non.existent', 'api-key')
         original = self._dynamic_a()
-        records, _type = provider._records_for_A(original)
+        records, _type = provider._records_for(original)
         rrset = {
             'name': original.fqdn,
             'type': _type,
             'ttl': original.ttl,
             'records': records,
         }
-        data = provider._data_for_LUA(rrset)
+        data = provider._data_for_dynamic(rrset)
         rebuilt = Record.new(Zone('unit.tests.', []), original.name, data)
         self.assertEqual(original._data(), rebuilt._data())
 
-    def test_data_for_LUA_multi_record_legacy_path(self):
+    def test_populate_lua_multi_record_legacy_path(self):
         # Multi-record LUA rrsets (the pre-dynamic PowerDnsLuaRecord use case)
         # are never decoded as dynamic, even if one of the entries happens to
         # look like a marker — the dynamic decoder only runs for single-entry
         # rrsets.
-        provider = PowerDnsProvider('test', 'non.existent', 'api-key')
-        rrset = {
-            'name': 'lua.unit.tests.',
-            'type': 'LUA',
-            'ttl': 60,
-            'records': [
+        record = self._populate_lua(
+            [
                 {'content': 'A ";return \'1.2.3.4\'"', 'disabled': False},
                 {'content': 'AAAA ";return \'fc00::42\'"', 'disabled': False},
-            ],
-        }
-        data = provider._data_for_LUA(rrset)
-        self.assertEqual(PowerDnsLuaRecord._type, data['type'])
-        self.assertEqual(2, len(data['values']))
+            ]
+        )
+        self.assertEqual(PowerDnsLuaRecord._type, record._type)
+        self.assertEqual(2, len(record.values))
 
-    def test_data_for_LUA_malformed_marker_raises(self):
+    def test_data_for_dynamic_malformed_marker_raises(self):
         # A content entry that starts with the dynamic marker but carries a
         # broken payload must raise ProviderException, not silently fall back
         # to PowerDnsLuaRecord — a corrupt marker is a bug, not a missing one.
@@ -1021,10 +1018,72 @@ class TestPowerDnsProvider(TestCase):
             'records': [{'content': broken, 'disabled': False}],
         }
         with self.assertRaises(ProviderException):
-            provider._data_for_LUA(rrset)
+            provider._data_for_dynamic(rrset)
+
+    def test_populate_lua_malformed_marker_raises(self):
+        # The same malformed marker surfaces through populate() as well,
+        # since that's the path a real PATCH response goes through.
+        from octodns_powerdns.dynamic import DYNAMIC_MARKER
+
+        broken = f'A ";{DYNAMIC_MARKER}AAAA"'
+        with self.assertRaises(ProviderException):
+            self._populate_lua([{'content': broken, 'disabled': False}])
+
+    def test_populate_lua_excluded_from_supports(self):
+        # When the provider-specific LUA type isn't in SUPPORTS, "LUA"
+        # rrsets are skipped entirely -- including ones that are actually a
+        # dynamic record in disguise.
+        class NoLuaProvider(PowerDnsProvider):
+            SUPPORTS = PowerDnsProvider.SUPPORTS - {PowerDnsLuaRecord._type}
+
+        provider = NoLuaProvider(
+            'test', 'non.existent', 'api-key', strict_supports=False
+        )
+        rrsets = {
+            'rrsets': [
+                {
+                    'name': 'lua.unit.tests.',
+                    'type': 'LUA',
+                    'ttl': 60,
+                    'records': [
+                        {
+                            'content': 'A ";return \'1.2.3.4\'"',
+                            'disabled': False,
+                        }
+                    ],
+                }
+            ]
+        }
+        with requests_mock() as mock:
+            mock.get(ANY, status_code=200, json=rrsets)
+            zone = Zone('unit.tests.', [])
+            provider.populate(zone)
+        self.assertEqual(set(), zone.records)
 
 
 class TestPowerDnsLuaRecord(TestCase):
+    def test_rdata_text(self):
+        from octodns.record import RdataParseError
+
+        self.assertEqual(
+            {'type': 'A', 'script': "'1.2.3.4'"},
+            _PowerDnsLuaValue.from_rdata_text('A "\'1.2.3.4\'"'),
+        )
+
+        value = _PowerDnsLuaValue({'type': 'A', 'script': "'1.2.3.4'"})
+        self.assertEqual('A "\'1.2.3.4\'"', value.to_rdata_text())
+
+        # round trip
+        self.assertEqual(
+            value,
+            _PowerDnsLuaValue(
+                _PowerDnsLuaValue.from_rdata_text(value.to_rdata_text())
+            ),
+        )
+
+        with self.assertRaises(RdataParseError):
+            _PowerDnsLuaValue.from_rdata_text('no-space-here')
+
     def test_basics(self):
         zone = Zone('unit.tests.', [])
 
