@@ -27,7 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "octodns>=1.5.0",
+    "octodns>=1.22.0",
     "requests>=2.26.0",
 ]
 
@@ -84,7 +84,6 @@ sections = "FUTURE,STDLIB,THIRDPARTY,OCTODNS,FIRSTPARTY,LOCALFOLDER"
 [tool.pytest.ini_options]
 filterwarnings = [
   'error',
-  'ignore:.*DEPRECATED.*2.0',
   # required until migrate the check and require octoDNS >= 2.x
   'ignore:`_PowerDnsLuaValue.validate` classmethod is DEPRECATED:DeprecationWarning:octodns.record.base',
 ]

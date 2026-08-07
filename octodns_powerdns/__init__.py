@@ -11,23 +11,7 @@ from requests import HTTPError, Session
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
-from octodns.record import Record
-
-try:  # pragma: no cover
-    from octodns.record.https import HttpsValue
-    from octodns.record.svcb import SvcbValue
-
-    SUPPORTS_SVCB = True
-except ImportError:  # pragma: no cover
-    SUPPORTS_SVCB = False
-
-try:  # pragma: no cover
-    from octodns.record.uri import UriValue
-
-    SUPPORTS_URI = True
-except ImportError:  # pragma: no cover
-    SUPPORTS_URI = False
-
+from octodns.record import Record, Rrset
 
 from .dynamic import decode as _dynamic_decode
 from .dynamic import encode as _dynamic_encode
@@ -46,16 +30,6 @@ def _encode_zone_name(name):
     return quote_plus(name).replace('%', '=')
 
 
-def _escape_unescaped_semicolons(value):
-    pieces = value.split(';')
-    if len(pieces) == 1:
-        return value
-    last = pieces.pop()
-    joined = ';'.join([p if p and p[-1] == '\\' else f'{p}\\' for p in pieces])
-    ret = f'{joined};{last}'
-    return ret
-
-
 class PowerDnsBaseProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC_SUBNETS = True
@@ -70,6 +44,7 @@ class PowerDnsBaseProvider(BaseProvider):
             'CAA',
             'CNAME',
             'DS',
+            'HTTPS',
             'LOC',
             'MX',
             'NAPTR',
@@ -77,18 +52,13 @@ class PowerDnsBaseProvider(BaseProvider):
             'PTR',
             'SSHFP',
             'SRV',
+            'SVCB',
             'TLSA',
             'TXT',
+            'URI',
             PowerDnsLuaRecord._type,
         )
     )
-    # These are only supported if we have a new enough octoDNS core
-    if SUPPORTS_SVCB:  # pragma: no cover
-        SUPPORTS.add('HTTPS')
-        SUPPORTS.add('SVCB')
-
-    if SUPPORTS_URI:  # pragma: no cover
-        SUPPORTS.add('URI')
 
     TIMEOUT = 5
 
@@ -187,221 +157,28 @@ class PowerDnsBaseProvider(BaseProvider):
     def _patch(self, path, data=None):
         return self._request('PATCH', path, data=data)
 
-    def _data_for_multiple(self, rrset):
-        # TODO: geo not supported
-        return {
-            'type': rrset['type'],
-            'values': [r['content'] for r in rrset['records']],
-            'ttl': rrset['ttl'],
-        }
-
-    _data_for_A = _data_for_multiple
-    _data_for_AAAA = _data_for_multiple
-    _data_for_NS = _data_for_multiple
-    _data_for_PTR = _data_for_multiple
-
-    def _data_for_TLSA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (
-                certificate_usage,
-                selector,
-                matching_type,
-                certificate_association_data,
-            ) = record['content'].split(' ', 3)
-            values.append(
-                {
-                    'certificate_usage': certificate_usage,
-                    'selector': selector,
-                    'matching_type': matching_type,
-                    'certificate_association_data': certificate_association_data,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_DS(self, rrset):
-        values = []
-        for record in rrset['records']:
-            key_tag, algorithm, digest_type, digest = record['content'].split(
-                ' ', 3
-            )
-            value = {
-                'key_tag': key_tag,
-                'algorithm': algorithm,
-                'digest_type': digest_type,
-                'digest': digest,
-            }
-            values.append(value)
-
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_CAA(self, rrset):
-        values = []
-        for record in rrset['records']:
-            flags, tag, value = record['content'].split(' ', 2)
-            values.append({'flags': flags, 'tag': tag, 'value': value[1:-1]})
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_single(self, rrset):
-        return {
-            'type': rrset['type'],
-            'value': rrset['records'][0]['content'],
-            'ttl': rrset['ttl'],
-        }
-
-    _data_for_ALIAS = _data_for_single
-    _data_for_CNAME = _data_for_single
-
-    def _data_for_quoted(self, rrset):
-        return {
-            'type': rrset['type'],
-            'values': [
-                _escape_unescaped_semicolons(r['content'][1:-1])
-                for r in rrset['records']
-            ],
-            'ttl': rrset['ttl'],
-        }
-
-    _data_for_TXT = _data_for_quoted
-
-    def _data_for_LOC(self, rrset):
-        values = []
-        for record in rrset['records']:
-            (
-                lat_degrees,
-                lat_minutes,
-                lat_seconds,
-                lat_direction,
-                long_degrees,
-                long_minutes,
-                long_seconds,
-                long_direction,
-                altitude,
-                size,
-                precision_horz,
-                precision_vert,
-            ) = (record['content'].replace('m', '').split(' ', 11))
-            values.append(
-                {
-                    'lat_degrees': int(lat_degrees),
-                    'lat_minutes': int(lat_minutes),
-                    'lat_seconds': float(lat_seconds),
-                    'lat_direction': lat_direction,
-                    'long_degrees': int(long_degrees),
-                    'long_minutes': int(long_minutes),
-                    'long_seconds': float(long_seconds),
-                    'long_direction': long_direction,
-                    'altitude': float(altitude),
-                    'size': float(size),
-                    'precision_horz': float(precision_horz),
-                    'precision_vert': float(precision_vert),
-                }
-            )
-        return {'ttl': rrset['ttl'], 'type': rrset['type'], 'values': values}
-
-    def _data_for_MX(self, rrset):
-        values = []
-        for record in rrset['records']:
-            preference, exchange = record['content'].split(' ', 1)
-            values.append({'preference': preference, 'exchange': exchange})
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_NAPTR(self, rrset):
-        values = []
-        for record in rrset['records']:
-            order, preference, flags, service, regexp, replacement = record[
-                'content'
-            ].split(' ', 5)
-            values.append(
-                {
-                    'order': order,
-                    'preference': preference,
-                    'flags': flags[1:-1],
-                    'service': service[1:-1],
-                    'regexp': regexp[1:-1],
-                    'replacement': replacement,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SSHFP(self, rrset):
-        values = []
-        for record in rrset['records']:
-            algorithm, fingerprint_type, fingerprint = record['content'].split(
-                ' ', 2
-            )
-            values.append(
-                {
-                    'algorithm': algorithm,
-                    'fingerprint_type': fingerprint_type,
-                    'fingerprint': fingerprint,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SRV(self, rrset):
-        values = []
-        for record in rrset['records']:
-            priority, weight, port, target = record['content'].split(' ', 3)
-            values.append(
-                {
-                    'priority': priority,
-                    'weight': weight,
-                    'port': port,
-                    'target': target,
-                }
-            )
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_HTTPS(self, rrset):
-        values = []
-        for record in rrset['records']:
-            value = HttpsValue.parse_rdata_text(record['content'])
-            values.append(value)
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_SVCB(self, rrset):
-        values = []
-        for record in rrset['records']:
-            value = SvcbValue.parse_rdata_text(record['content'])
-            values.append(value)
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
-
-    def _data_for_LUA(self, rrset):
+    def _data_for_dynamic(self, rrset):
+        # A dynamic record always serializes to exactly one content entry in
+        # a PowerDNS "LUA" rrset; if that's what we have, and its qtype is
+        # dynamic-capable, try to decode the octodns-dynamic marker. Returns
+        # None when the rrset isn't a dynamic record in disguise, in which
+        # case it's a "real" PowerDnsProvider/LUA record.
         records = rrset['records']
-        # A dynamic record always serializes to exactly one content entry; if
-        # the rrset has one record matching a dynamic-capable qtype, try to
-        # decode the octodns-dynamic marker.
-        if len(records) == 1:
-            _type, script = records[0]['content'].split(' ', 1)
-            if (
-                _type in ('A', 'AAAA', 'CNAME')
-                and script.startswith('"')
-                and script.endswith('"')
-            ):
-                try:
-                    data = _dynamic_decode(script[1:-1], _type)
-                except ValueError:
-                    pass
-                else:
-                    data['ttl'] = rrset['ttl']
-                    return data
-        values = []
-        for record in records:
-            _type, script = record['content'].split(' ', 1)
-            values.append({'type': _type, 'script': script[1:-1]})
-        return {
-            'ttl': rrset['ttl'],
-            'type': PowerDnsLuaRecord._type,
-            'values': values,
-        }
-
-    def _data_for_URI(self, rrset):
-        values = []
-        for record in rrset['records']:
-            value = UriValue.parse_rdata_text(record['content'])
-            values.append(value)
-        return {'type': rrset['type'], 'values': values, 'ttl': rrset['ttl']}
+        if len(records) != 1:
+            return None
+        _type, script = records[0]['content'].split(' ', 1)
+        if not (
+            _type in ('A', 'AAAA', 'CNAME')
+            and script.startswith('"')
+            and script.endswith('"')
+        ):
+            return None
+        try:
+            data = _dynamic_decode(script[1:-1], _type)
+        except ValueError:
+            return None
+        data['ttl'] = rrset['ttl']
+        return data
 
     @property
     def powerdns_version(self):
@@ -561,23 +338,45 @@ class PowerDnsBaseProvider(BaseProvider):
 
         if resp:
             exists = True
-            for rrset in resp.json()['rrsets']:
-                _type = rrset['type']
-                _provider_specific_type = f'PowerDnsProvider/{_type}'
-                if (
-                    _type not in self.SUPPORTS
-                    and _provider_specific_type not in self.SUPPORTS
-                ):
+            rrsets = []
+            for pdns_rrset in resp.json()['rrsets']:
+                _type = pdns_rrset['type']
+                if _type == 'LUA':
+                    if PowerDnsLuaRecord._type not in self.SUPPORTS:
+                        continue
+                    # a "LUA" rrset may be an octoDNS dynamic record in
+                    # disguise; if so it's handled directly since it doesn't
+                    # have a 1:1 rrset/record type mapping like everything
+                    # else does
+                    data = self._data_for_dynamic(pdns_rrset)
+                    if data is not None:
+                        record_name = zone.hostname_from_fqdn(
+                            pdns_rrset['name']
+                        )
+                        record = Record.new(
+                            zone,
+                            record_name,
+                            data,
+                            source=self,
+                            lenient=lenient,
+                        )
+                        zone.add_record(record, lenient=lenient)
+                        continue
+                    _type = PowerDnsLuaRecord._type
+                elif _type not in self.SUPPORTS:
                     continue
-                data_for = getattr(self, f'_data_for_{_type}')
-                record_name = zone.hostname_from_fqdn(rrset['name'])
-                record = Record.new(
-                    zone,
-                    record_name,
-                    data_for(rrset),
-                    source=self,
-                    lenient=lenient,
+                rrsets.append(
+                    Rrset(
+                        pdns_rrset['name'],
+                        _type,
+                        pdns_rrset['ttl'],
+                        [r['content'] for r in pdns_rrset['records']],
+                    )
                 )
+
+            for record in Record.from_rrsets(
+                zone, rrsets, lenient=lenient, source=self
+            ):
                 zone.add_record(record, lenient=lenient)
 
         self.log.info(
@@ -587,138 +386,26 @@ class PowerDnsBaseProvider(BaseProvider):
         )
         return exists
 
-    def _records_for_multiple(self, record):
-        return [
-            {'content': v, 'disabled': False} for v in record.values
-        ], record._type
-
-    def _records_for_dynamic(self, record):
-        script = _dynamic_encode(record)
-        content = f'{record._type} "{script}"'
-        return [{'content': content, 'disabled': False}], 'LUA'
-
-    def _records_for_A(self, record):
-        if record.dynamic:
-            return self._records_for_dynamic(record)
-        return self._records_for_multiple(record)
-
-    _records_for_AAAA = _records_for_A
-    _records_for_NS = _records_for_multiple
-    _records_for_PTR = _records_for_multiple
-
-    def _records_for_TLSA(self, record):
-        return [
-            {
-                'content': f'{v.certificate_usage} {v.selector} {v.matching_type} {v.certificate_association_data}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_DS(self, record):
-        data = []
-        for v in record.values:
-            content = f'{v.key_tag} {v.algorithm} {v.digest_type} {v.digest}'
-            data.append({'content': content, 'disabled': False})
-        return data, record._type
-
-    def _records_for_CAA(self, record):
-        return [
-            {'content': f'{v.flags} {v.tag} "{v.value}"', 'disabled': False}
-            for v in record.values
-        ], record._type
-
-    def _records_for_single(self, record):
-        return [{'content': record.value, 'disabled': False}], record._type
-
-    _records_for_ALIAS = _records_for_single
-
-    def _records_for_CNAME(self, record):
-        if record.dynamic:
-            return self._records_for_dynamic(record)
-        return self._records_for_single(record)
-
-    def _records_for_quoted(self, record):
-        return [
-            {'content': f'"{v}"', 'disabled': False} for v in record.values
-        ], record._type
-
-    _records_for_TXT = _records_for_quoted
-
-    def _records_for_LOC(self, record):
-        return [
-            {
-                'content': '%d %d %0.3f %s %d %d %.3f %s %0.2fm %0.2fm %0.2fm %0.2fm'
-                % (
-                    int(v.lat_degrees),
-                    int(v.lat_minutes),
-                    float(v.lat_seconds),
-                    v.lat_direction,
-                    int(v.long_degrees),
-                    int(v.long_minutes),
-                    float(v.long_seconds),
-                    v.long_direction,
-                    float(v.altitude),
-                    float(v.size),
-                    float(v.precision_horz),
-                    float(v.precision_vert),
-                ),
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_MX(self, record):
-        return [
-            {'content': f'{v.preference} {v.exchange}', 'disabled': False}
-            for v in record.values
-        ], record._type
-
-    def _records_for_NAPTR(self, record):
-        return [
-            {
-                'content': f'{v.order} {v.preference} "{v.flags}" "{v.service}" '
-                f'"{v.regexp}" {v.replacement}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SSHFP(self, record):
-        return [
-            {
-                'content': f'{v.algorithm} {v.fingerprint_type} {v.fingerprint}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SRV(self, record):
-        return [
-            {
-                'content': f'{v.priority} {v.weight} {v.port} {v.target}',
-                'disabled': False,
-            }
-            for v in record.values
-        ], record._type
-
-    def _records_for_SVCB(self, record):
-        return [
-            {'content': v.rdata_text, 'disabled': False} for v in record.values
-        ], record._type
-
-    _records_for_HTTPS = _records_for_SVCB
-    _records_for_URI = _records_for_SVCB
-
-    def _records_for_PowerDnsProvider_LUA(self, record):
-        return [
-            {'content': f'{v._type} "{v.script}"', 'disabled': False}
-            for v in record.values
-        ], 'LUA'
+    def _rrset_for(self, record):
+        if getattr(record, 'dynamic', None):
+            # dynamic A/AAAA/CNAME records are always stored as a single
+            # "LUA" rrset carrying the octodns-dynamic marker; they don't
+            # have a 1:1 rrset/record type mapping like everything else does
+            script = _dynamic_encode(record)
+            content = f'{record._type} "{script}"'
+            return Rrset(record.fqdn, 'LUA', record.ttl, [content])
+        rrset = record.to_rrset()
+        if rrset._type == PowerDnsLuaRecord._type:
+            # octoDNS type name -> PowerDNS rrset type
+            return Rrset(rrset.name, 'LUA', rrset.ttl, rrset.rdatas)
+        return rrset
 
     def _records_for(self, record):
-        name = f'_records_for_{record._type}'.replace('/', '_')
-        return getattr(self, name)(record)
+        rrset = self._rrset_for(record)
+        records = [
+            {'content': rdata, 'disabled': False} for rdata in rrset.rdatas
+        ]
+        return records, rrset._type
 
     def _mod_Create(self, change):
         new = change.new
